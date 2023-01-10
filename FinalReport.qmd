@@ -41,9 +41,9 @@ The main contributions of this project are related to the identification of Hair
 
 Inner ear disorders affect a large amount of the world population either as earing diseases or balance disorders [1, 2]. In this line, developing inner ear models to study this biological systems have been of great interest [3]. Nevertheless, most of these models were developed for mouse, as accessing inner ear in humans require invasive techniques. This, together with the low regeneration rate of Hair Cells (HC), increased the difficulty of in-vivo analysis of this cell population.
 
-In this line, research about human hair cells, inner ear organogenesis, and inner ear organoids has been attracting interest in the scientific community [4-6]. Furthermore, the combination of this biological tool with the current advances on single-cell RNA sequencing (scRNA-seq) has allowed the characterisation of this rare population [7-9].
+In this line, research about human hair cells, inner ear organogenesis, and inner ear organoids have been attracting interest in the scientific community [4-6]. Furthermore, the combination of this biological tool with the current advances on single-cell RNA sequencing (scRNA-seq) has allowed the characterisation of this rare population [7-9].
 
-With these new advances, the field of research of the human inner ear has improved its ability to identify and characterize cell populations in the inner ear. The importance of characterizing human hair cells reside in its main role in hearing, and it has been shown that some drugs can have important side effects producing hearing loss or deafness [10].
+With these new advances, the field of research of the human inner ear has improved its ability to identify and characterize rare cell populations in this anatomical region. The importance of characterizing human hair cells reside on its main role in hearing. Furthermore, it has been shown that some drugs can have important side effects producing hearing loss or deafness [10].
 
 # Methodology & Results
 
