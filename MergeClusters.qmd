@@ -1,0 +1,304 @@
+---
+title: "MergeDatasets"
+author: "Jose F Carreño"
+format: html
+embed-resources: true
+editor: source
+---
+
+## Load necessary libraries
+
+```{r, warning=FALSE}
+library(Seurat)
+library(cowplot)
+library(ggplot2)
+```
+
+
+## Set important paths
+
+```{r}
+dataDirs <- list(
+  day60_old = list(
+    cellRanger = "/srv/gstore4users/p29781/o29804_CellRangerCount_2022-11-04--11-20-44/day60oticdiff_Library_418886_1",
+    seuratReport = "/srv/gstore4users/p29781/o29804_ScSeurat_2022-11-08--10-01-51/day60oticdiff_Library_418886_1_SCReport",
+    labeledObject = "/srv/gstore4users/p29781/additional-analyses/2022-11-28-relabel-day60"
+  ),
+  day60_new = list(
+    cellRanger = "/srv/gstore4users/p29781/o30306_CellRangerCount_2022-12-20--11-08-02/IEOday60_controlprotocol",
+    scData = "/srv/gstore4users/p29781/o30306_ScSeurat_2022-12-20--22-03-42/IEOday60_controlprotocol_SCReport")
+)
+dataDirs
+
+resultDir <- "/scratch/jcarreno/sta426_project/results"
+```
+
+## Load data
+
+First we load the data from the server and we identify the source of each dataset
+
+```{r}
+oldAnalysis <- readRDS(file = paste(dataDirs$day60_old$seuratReport, "/scData.rds",sep = ""))
+newAnalysis <- readRDS(file = paste(dataDirs$day60_new$scData, "/scData.rds",sep = ""))
+```
+
+
+```{r}
+oldAnalysis$experiment <- "OLD"
+newAnalysis$experiment <- "NEW"
+```
+
+
+## Merge the two datasets
+
+Now, we can merge the datasets using FindIntegrationAnchors() and IntegrateData() from Seurat package.
+
+```{r}
+anchors <- FindIntegrationAnchors(object.list = list(oldAnalysis, newAnalysis), dims = 1:20)
+```
+
+```{r}
+combined <- IntegrateData(anchorset = anchors, dims = 1:20)
+```
+
+```{r}
+#combined <- readRDS(file = "combinedSeurat.rds")
+```
+
+
+## Check differences between datasets
+
+### Dimensionality
+
+We can perform now basic visual inspection to check if the integration has been done properly
+
+```{r}
+DefaultAssay(combined) <- "integrated"
+```
+
+```{r}
+# Run the standard workflow for visualization and clustering
+combined <- ScaleData(combined, verbose = FALSE)
+combined <- RunPCA(combined, npcs = 30, verbose = FALSE)
+ElbowPlot(combined)
+```
+### Dimensionality Reduction
+
+```{r}
+combined <- RunUMAP(combined, reduction = "pca", dims = 1:20)
+combined <- FindNeighbors(combined, reduction = "pca", dims = 1:20, k.param = 9)
+combined <- FindClusters(combined, resolution = 0.5)
+```
+
+
+```{r}
+p1 <- DimPlot(combined, reduction = "umap", group.by = "experiment")
+p2 <- DimPlot(combined, reduction = "umap", label = TRUE)
+plot_grid(p1, p2)
+```
+
+```{r}
+DimPlot(combined, reduction = "umap", split.by = "experiment")
+```
+Save the combined data
+
+```{r}
+#saveRDS(combined, file = "combinedSeurat.rds")
+```
+
+
+## Identification of HC
+
+Note: MYO7A is a gene used by Steinhard et al. However, it does not appear in our analysis as it has likely been discarded due to its low presence during QC or during the merging of both datasets.
+
+```{r}
+ghc <- c('ATOH1',
+'MYO7A',
+'MYO6',
+'PCP4',
+'ANXA4',
+'GFI1',
+'ESPN',
+'TMPRSS3',
+'BDNF',
+'CCER2',
+'GNG8',
+'POU4F3',
+'OTOF',
+'FSIP1',
+'ZBBX',
+'SKOR1',
+'DNAH5',
+'SCL26A5',
+'GATA3',
+'LMOD3',
+'FGF8',
+'INSM1',
+'DNM3'
+)
+```
+
+
+```{r}
+for (marker in ghc){
+  tryCatch({print(FeaturePlot(combined, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+Show subset of clusters (small clusters, those that are likely to be of interest)
+
+```{r, fig.width=15, fig.height=15}
+DoHeatmap(combined, features = ghc, cells = WhichCells(combined, idents = c("8","9","10","11","12","13","14","15","16","17","18","19","20")))
+```
+
+Number of cells per cluster:
+
+```{r}
+cellCountperCluster <- data.frame(id = Idents(combined))
+barplot = ggplot(data=cellCountperCluster, aes(x=id)) + 
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust=-1) +
+  theme_minimal()
+barplot + labs(x="Cluster", y = "Cell count")
+```
+
+```{r}
+DotPlot(combined, features=ghc) + coord_flip() + theme(axis.text.x = element_text(size = 8))     
+```
+
+```{r}
+for (marker in ghc){
+  tryCatch({print(print(VlnPlot(combined, marker)))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+```{r}
+cells.use <- WhichCells(combined, idents = '20')
+DimPlot(combined, reduction = "umap", group.by = "ident", cells.highlight = cells.use, sizes.highlight = 0.3) + NoLegend()
+```
+
+Cluster 20 is likely to be HC cluster
+
+## Identification of Otic Epithelium
+
+```{r}
+oep <- c(
+'EPCAM',
+'CDH1',
+'SOX2',
+'SIX1',
+'OC90',
+'SOX10',
+'FBXO2',
+'LMX1A',
+'PAX2',
+'PAX8',
+'DLX5',
+'GBX2',
+'JAG1',
+'TBX2',
+'COL9A2',
+'OTOA',
+'MYO5C',
+'OTOL1',
+'USH1C',
+'PCDH9')
+```
+
+
+```{r}
+for (marker in oep){
+  tryCatch({print(FeaturePlot(combined, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+```{r, fig.width=15, fig.height=15}
+DoHeatmap(combined, features = ghc)
+```
+
+
+```{r}
+DotPlot(combined, features=oep) + coord_flip() + theme(axis.text.x = element_text(size = 8))     
+```
+
+```{r}
+for (marker in oep){
+  tryCatch({print(VlnPlot(combined, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+Cluster 13 is likely to be OEP cells
+
+## Reproduce Fig 6. E, H from Steinhart
+
+```{r}
+hc_stei <- c(
+  "ATOH1",
+  "MYO7A",
+  "OTOF",
+  "STRC",
+  "ESPN",
+  "GPX2",
+  "PCDH15",
+  "CDH23",
+  "USH2A",
+  "POU4F3",
+  "CABP2",
+  "GFI1",
+  "USH1C",
+  "RIPOR2",
+  "MYO6",
+  "MYO15A",
+  "CIB2",
+  "PCP4",
+  "CALM2",
+  "LHFPL5"
+)
+```
+
+```{r}
+oep_stei <- c(
+  "PAX8",
+  "PAX2",
+  "OC90",
+  "HMX3",
+  "DLX3", 
+  "DLX5",
+  "SALL4",
+  "DUSP6",
+  "SPRY2",
+  "SIX1",
+  "EYA1",
+  "FOXG1",
+  "LMX1A",
+  "OTOA",
+  "APOE",
+  "SMOC2",
+  "SPARCL1",
+  "FBXO2",
+  "COL11A1",
+  "COL9A2"
+)
+```
+
+```{r, fig.width=15, fig.height=15}
+VlnPlot(combined, hc_stei, idents = c("20", "13"))
+```
+
+
+
+```{r, fig.width=15, fig.height=15}
+VlnPlot(combined, oep_stei, idents = c("20", "13"))
+```
+

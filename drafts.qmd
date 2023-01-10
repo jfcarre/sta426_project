@@ -1,0 +1,60 @@
+---
+title: "draft"
+format: html
+editor: source
+---
+
+```{r}
+dataDirs <- list(
+  day60 = list(
+    cellRanger = "/srv/gstore4users/p29781/o29804_CellRangerCount_2022-11-04--11-20-44/day60oticdiff_Library_418886_1",
+    seuratReport = "/srv/gstore4users/p29781/o29804_ScSeurat_2022-11-08--10-01-51/day60oticdiff_Library_418886_1_SCReport",
+    labeledObject = "/srv/gstore4users/p29781/additional-analyses/2022-11-28-relabel-day60"
+  ),
+  day30 = list(
+    cellRanger = "/srv/gstore4users/p27889/o29467_CellRangerCount_2022-09-16--09-26-33/day30oticvesicle_Library_412321",
+    seuratReport = "/srv/gstore4users/p27889/o29467_ScSeurat_2022-09-22--15-04-32/day30oticvesicle_Library_412321_SCReport",
+    labeledObject = "/srv/gstore4users/p27889/additional-analyses/2022-10-04-relabel-day30oticvesicle"
+  ),
+  day08 = list(
+    cellRanger = "/srv/gstore4users/p27889/o28146_CellRangerCount_2022-07-11--09-59-01/placodeday8test1",
+    seuratReport = "/srv/gstore4users/p27889/o28146_ScSeurat_2022-05-19--11-14-04/placodeday8test1_SCReport",
+    labeledObject = "/srv/gstore4users/p27889/additional-analyses/2022-08-19-Seurat-relabeled"
+  )
+)
+dataDirs
+
+resultDir <- "/scratch/jcarreno/sta426_project/results"
+```
+
+
+```{r}
+htmlFileRanger <- paste(dataDirs$day60$cellRanger, "/web_summary.html",sep = "")
+htmlFileSeurat <- paste(dataDirs$day60$seuratReport, "/00index.html",sep = "")
+htmlFileSeurat2 <- paste(dataDirs$day60$labeledObject, "/day60oticvesicle-ScSeurat.html",sep = "")
+htmlFileSeuratNew <- "/srv/gstore/projects/p29781/o30306_ScSeurat_2022-12-20--22-03-42/IEOday60_CD4protocol_SCReport/00index.html" 
+viewer <- getOption("viewer")
+viewer(htmlFileRanger)
+viewer(htmlFileSeurat)
+viewer(htmlFileSeurat2)
+viewer(htmlFileSeuratNew)
+```
+
+```{r}
+setwd("/srv/gstore4users/p29781/o29804_ScSeurat_2022-11-08--10-01-51/day60oticdiff_Library_418886_1_SCReport")
+file.edit("ScSeurat.Rmd")
+```
+
+
+
+```{r}
+library(Seurat)
+
+anno <- readRDS(file = paste(dataDirs$day60$labeledObject, "/scData.rds",sep = ""))
+```
+
+```{r}
+FeaturePlot(anno, reduction = "umap")
+DimPlot(anno, reduction = "umap", group.by = "ident")
+```
+

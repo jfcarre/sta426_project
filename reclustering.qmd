@@ -1,0 +1,155 @@
+---
+title: "reclustering"
+author: "Jose F Carreno"
+format: html
+embed-resources: true
+editor: source
+---
+
+## Load libraries
+
+```{r}
+library(Seurat)
+```
+
+## Set important paths
+
+```{r}
+dataDirs <- list(
+  day60 = list(
+    cellRanger = "/srv/gstore4users/p29781/o29804_CellRangerCount_2022-11-04--11-20-44/day60oticdiff_Library_418886_1",
+    seuratReport = "/srv/gstore4users/p29781/o29804_ScSeurat_2022-11-08--10-01-51/day60oticdiff_Library_418886_1_SCReport",
+    labeledObject = "/srv/gstore4users/p29781/additional-analyses/2022-11-28-relabel-day60"
+  ),
+  day30 = list(
+    cellRanger = "/srv/gstore4users/p27889/o29467_CellRangerCount_2022-09-16--09-26-33/day30oticvesicle_Library_412321",
+    seuratReport = "/srv/gstore4users/p27889/o29467_ScSeurat_2022-09-22--15-04-32/day30oticvesicle_Library_412321_SCReport",
+    labeledObject = "/srv/gstore4users/p27889/additional-analyses/2022-10-04-relabel-day30oticvesicle"
+  ),
+  day08 = list(
+    cellRanger = "/srv/gstore4users/p27889/o28146_CellRangerCount_2022-07-11--09-59-01/placodeday8test1",
+    seuratReport = "/srv/gstore4users/p27889/o28146_ScSeurat_2022-05-19--11-14-04/placodeday8test1_SCReport",
+    labeledObject = "/srv/gstore4users/p27889/additional-analyses/2022-08-19-Seurat-relabeled"
+  )
+)
+dataDirs
+
+resultDir <- "/scratch/jcarreno/sta426_project/results"
+```
+
+## Load the annotated object
+
+```{r}
+anno <- readRDS(file = paste(dataDirs$day60$labeledObject, "/scData.rds",sep = ""))
+```
+
+## Original UMAP
+
+```{r}
+DimPlot(anno, reduction = "umap", group.by = "ident")
+```
+
+## Select clusters of interest
+
+```{r}
+anno.subset <- subset(anno, idents = c("OEP", "NEURONS", "EP"))
+DimPlot(anno.subset, reduction = "umap", group.by = "ident")
+```
+
+## Reclustering with louvain (same algorithm)
+
+```{r}
+anno.subset <- FindNeighbors(anno.subset, dims = 1:17, k.param = 5)
+anno.subset <- FindClusters(anno.subset, algorithm = 1)
+anno.subset$sub_cluster <- as.character(Idents(anno.subset))
+```
+
+
+```{r}
+DimPlot(anno.subset, reduction = "umap", label = TRUE)
+```
+
+```{r}
+hc <- c("ATOH1", "ANXA4", "GFI1", "CCER2", "POU4F3", "ATOH1",
+"MYO7A",
+"MYO6",
+"PCP4",
+"ESPN",
+"TMPRSS3",
+"BDNF",
+"GNG8",
+"POU4F3",
+"OTOF",
+"FSIP1",
+"ZBBX",
+"SKOR1",
+"DNAH5",
+"SCL26A5",
+"GATA3",
+"LMOD3",
+"FGF8",
+"TMPRSS3",
+"INSM1",
+"DNM3"
+)
+```
+
+```{r, fig.width=15, fig.height=10}
+FeaturePlot(anno.subset, reduction = "umap", features = hc)
+```
+
+```{r, fig.width=15, fig.height=15}
+DoHeatmap(anno.subset, features = hc)
+```
+
+
+## Reclustering with leiden (new method)
+
+```{r}
+anno.subset <- FindNeighbors(anno.subset, dims = 1:17, k.param = 5)
+anno.subset <- FindClusters(anno.subset, algorithm = 4)
+anno.subset$sub_cluster <- as.character(Idents(anno.subset))
+```
+
+```{r}
+DimPlot(anno.subset, reduction = "umap", label = TRUE)
+```
+
+```{r, fig.width=15, fig.height=15}
+DoHeatmap(anno.subset, features = hc)
+```
+
+After running the two methods, we have ended up in the same situation: The clusters of hypothetical hair cells are now in the same cluster, however these cells are mixed with other cell types.
+
+## Select EPCAM+ cells
+
+
+```{r}
+anno.epcam <- subset(anno, cells = WhichCells(anno, expression = EPCAM > 1.5))
+DimPlot(anno.epcam, reduction = "umap", group.by = "ident")
+```
+
+### Recluster EPCAM+ cells with Louvain method
+
+```{r, fig.align='center'}
+ElbowPlot(anno.epcam)
+```
+
+```{r}
+anno.epcam <- FindNeighbors(anno.epcam, dims = 1:19, k.param = 5)
+anno.epcam <- FindClusters(anno.epcam, algorithm = 1)
+anno.epcam$sub_cluster <- as.character(Idents(anno.epcam))
+```
+
+
+```{r}
+DimPlot(anno.epcam, reduction = "umap", label = TRUE)
+```
+```{r, fig.width=15, fig.height=15}
+DoHeatmap(anno.epcam, features = hc)
+```
+
+```{r}
+
+```
+

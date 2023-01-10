@@ -1,0 +1,795 @@
+---
+title: "STA426 Final Project"
+author: "José F Carreño"
+format: html
+embed-resources: true
+editor: source
+---
+
+```{r}
+library(Seurat)
+library(ggplot2)
+library(cowplot)
+library(ggpubr)
+```
+
+```{r}
+dataDirs <- list(
+  day60_old = list(
+    cellRanger = "/srv/gstore4users/p29781/o29804_CellRangerCount_2022-11-04--11-20-44/day60oticdiff_Library_418886_1",
+    seuratReport = "/srv/gstore4users/p29781/o29804_ScSeurat_2022-11-08--10-01-51/day60oticdiff_Library_418886_1_SCReport",
+    labeledObject = "/srv/gstore4users/p29781/additional-analyses/2022-11-28-relabel-day60"
+  ),
+  day60_new = list(
+    cellRanger = "/srv/gstore4users/p29781/o30306_CellRangerCount_2022-12-20--11-08-02/IEOday60_controlprotocol",
+    scData = "/srv/gstore4users/p29781/o30306_ScSeurat_2022-12-20--22-03-42/IEOday60_controlprotocol_SCReport")
+)
+dataDirs
+
+resultDir <- "/scratch/jcarreno/sta426_project/results"
+```
+
+# Abstract
+
+Earing disorders are mainly caused by the damage or destruction of a rare population of cells known as Hair Cells. Hair cells are in charge of sensing, earing and balance and are found in the inner ear. Studying inner ear development is extremely useful for understanding the behavior of these cells, however, accessing it is extremely difficult. 
+
+The combination of tools such as 3D organoids and single cell RNA sequencing has allowed the study and characterization of the aforementioned cell population. This project focuses on the analysis of scRNA-seq data coming from 3D organoids of the human inner ear. 
+
+The main contributions of this project are related to the identification of Hair Cell populations in scRNA-seq data. The approaches followed were a reclustering of a subset of cells of interest, as well as the merge of two datasets of interest. To ensure that the results were meaningful, the results obtained are compared to a reference study recently published and that followed a similar experimental and bioinformatic analysis. 
+
+# Motivation & Introduction
+
+Inner ear disorders affect a large amount of the world population either as earing diseases or balance disorders [1, 2]. In this line, developing inner ear models to study this biological systems have been of great interest [3]. Nevertheless, most of these models were developed for mouse, as accessing inner ear in humans require invasive techniques. This, together with the low regeneration rate of Hair Cells (HC), increased the difficulty of in-vivo analysis of this cell population.
+
+In this line, research about human hair cells, inner ear organogenesis, and inner ear organoids have been attracting interest in the scientific community [4-6]. Furthermore, the combination of this biological tool with the current advances on single-cell RNA sequencing (scRNA-seq) has allowed the characterisation of this rare population [7-9].
+
+With these new advances, the field of research of the human inner ear has improved its ability to identify and characterize rare cell populations in this anatomical region. The importance of characterizing human hair cells reside on its main role in hearing. Furthermore, it has been shown that some drugs can have important side effects producing hearing loss or deafness [10].
+
+# Methodology & Results
+
+To identify and characterize a population of Hair Cells using scRNA-seq, the Functional Genomic Center of Zurich performed the sequencing of 3D inner ear organoids cultured in Marta Roccio´s lab at the Neuroscience Center Zurich. The bioinformaticians at the FGCZ initially filtered low-quality reads, clustered and annotated the selected cells and provided some summary gene expression profiles of each of the cell populations identified. Further analysis and characterization of the rare population of Hair Cells is part of this project.
+
+The first run of the study resulted in an extremely low amount of potential Hair Cells, hence to increase the statistical power and to facilitate the analysis, a second run was performed. This time high quality inner ear organoids were manually selected for library preparation and sequencing.
+
+## Initial data processing
+
+The data used for this project is coming from the sequencing of 3D inner ear organoids. These biological systems were cultured for 60 days in-vitro while their cells were induced to differentiation starting from iPSC.
+
+Once the organoids were considered to be mature, they were triturated and single cells were suspended. In order to avoid the contamination of the sample with Neurons (mainly EPCAM- cells) FACS sorting was performed. This sorting only worked well during the second run of the experiment, hence why Neurons also appear during the analysis performed here.
+
+After library preparation and sequencing, the FGCZ performed quality control and an initial characterization of the cell populations identified. Despite an in-depth explanation of this analysis is beyond the scope of the project, the steps followed are outlined in this section:
+
+  * Cells with low number of UMIs and low detected genes were filtered out. 
+  * Cells with high mitochondrial percent were filtered out
+  * Cells with low ribosomal RNA & low RNA count were filtered out
+  * Doublets were discarded
+  * Dimensionality reduction: After studying the dimensionality of the data, about 20 PCs were enough to explain most of the variance
+  * Louvain clustering on the filtered data was perfomed and visualized using tSNE and UMAP
+  * Batch effects assessment and correction
+  * Cluster annotation
+
+## Reclustering of original experiment
+
+Once this analysis was performed, the user interested in this analysis considered that the clustering was not totally useful for their needs. The reason was that the population of interest was not identified by this initial clustering, however by marker analysis it appears to be expressed. In the scope of this request this project emerged, which aim is to further extend the initial analysis done by the FGCZ and identify a population of Hair Cells in the original data. 
+
+The genes of interest for the Hair Cells [9] are shown: 
+
+```{r}
+hc <- c("ATOH1", 
+        "ANXA4", 
+        "GFI1", 
+        "CCER2", 
+        "POU4F3",
+        "MYO7A",
+        "MYO6",
+        "PCP4",
+        "ESPN",
+        "TMPRSS3",
+        "BDNF",
+        "GNG8",
+        "POU4F3",
+        "OTOF",
+        "FSIP1",
+        "ZBBX",
+        "SKOR1",
+        "DNAH5",
+        "SCL26A5",
+        "GATA3",
+        "LMOD3",
+        "FGF8",
+        "TMPRSS3",
+        "INSM1",
+        "DNM3"
+)
+```
+
+In order to further analyze the experimental results from the first run, the Seurat object must be loaded into the R environment:
+
+```{r}
+anno <- readRDS(file = paste(dataDirs$day60_old$labeledObject, "/scData.rds",sep = ""))
+```
+
+The data used in this section is coming from the previously analyze experimental data, to which dimensionality reduction and clustering algorithms were applied. The annotated dataset used for this section can be seen in the following image:
+
+```{r}
+DimPlot(anno, reduction = "umap", group.by = "ident")
+```
+
+As previously stated, the end goal of this section is to identify a cluster with a high sensitivity & specificity for Hair Cells. The first approach to achieve this goal is to select only the biologically-related clusters in the processed UMAP and then recluster only the clusters of interest. The second approach is to select only those cells expressing a minimum amount of the EPCAM gene and recluster the resulting cells. 
+
+### Reclustering biologically related clusters
+
+The selected clusters were: Otic epithelium cells, Neurons and Epithelial cells. The cells used for this subsection can be mapped to the original UMAP:
+
+```{r}
+anno.subset <- subset(anno, idents = c("OEP", "NEURONS", "EP"))
+DimPlot(anno.subset, reduction = "umap", group.by = "ident")
+```
+
+At this point, both Louvain and Leiden clustering algorithms were tested, and the purity of each cluster was addressed.
+
+#### Louvain clustering
+
+```{r}
+anno.subset <- FindNeighbors(anno.subset, dims = 1:17, k.param = 5)
+anno.subset <- FindClusters(anno.subset, algorithm = 1)
+anno.subset$sub_cluster <- as.character(Idents(anno.subset))
+```
+
+The much more granular clusters are shown in the next figure:
+
+```{r}
+DimPlot(anno.subset, reduction = "umap", label = TRUE)
+```
+
+And the expression level of each gene of interest can be seen in the following grid of UMAPs:
+
+```{r, fig.width=15, fig.height=15}
+FeaturePlot(anno.subset, reduction = "umap", features = hc)
+```
+
+To improve the identification of a possible cluster of HC, a heatmap is also shown:
+
+```{r, fig.width=15, fig.height=15}
+DoHeatmap(anno.subset, features = hc)
+```
+
+#### Leiden clustering
+
+```{r, warning=FALSE}
+anno.subset <- FindNeighbors(anno.subset, dims = 1:17, k.param = 5)
+anno.subset <- FindClusters(anno.subset, algorithm = 4)
+anno.subset$sub_cluster <- as.character(Idents(anno.subset))
+```
+
+
+Following the same procedure as before, the more granular clustering is shown here:
+
+```{r}
+DimPlot(anno.subset, reduction = "umap", label = TRUE)
+```
+
+And the heatmap for the set of genes of interest is shown:
+
+```{r, fig.width=15, fig.height=15}
+DoHeatmap(anno.subset, features = hc)
+```
+
+A brief discussion on these results is provided in the Discussion section
+
+### Reclustering of EPCAM+ cells
+
+The selection of only EPCAM+ cells resulted in the discard of most of the original data. The kept cells are shown in the following UMAP:
+
+```{r}
+anno.epcam <- subset(anno, cells = WhichCells(anno, expression = EPCAM > 1.5))
+DimPlot(anno.epcam, reduction = "umap", group.by = "ident")
+```
+
+Once again, the kept data is reclustered. This time only the Louvain algorihtm was used.
+
+```{r}
+anno.epcam <- subset(anno, cells = WhichCells(anno, expression = EPCAM > 1.5))
+DimPlot(anno.epcam, reduction = "umap", group.by = "ident")
+```
+
+```{r, fig.align='center'}
+ElbowPlot(anno.epcam)
+```
+
+```{r}
+anno.epcam <- FindNeighbors(anno.epcam, dims = 1:19, k.param = 5)
+anno.epcam <- FindClusters(anno.epcam, algorithm = 1)
+anno.epcam$sub_cluster <- as.character(Idents(anno.epcam))
+```
+
+```{r}
+DimPlot(anno.epcam, reduction = "umap", label = TRUE)
+```
+
+```{r, fig.width=15, fig.height=15}
+DoHeatmap(anno.epcam, features = hc)
+```
+
+This time, there is a cluster that potentially shows high purity of Hair Cells, so opposite to what was obtained during the first approach, where biologically-related clusters were kept, this methodology has shown the possibility to isolate Hair Cells into an individual cluster. 
+
+## EPCAM+ Cells Analysis
+
+To further investigate this cluster, first thing done was to count the number of cells per cluster. 
+
+```{r}
+cellCountperCluster <- data.frame(id = Idents(anno.epcam))
+barplot = ggplot(data=cellCountperCluster, aes(x=id)) + 
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust=-1) +
+  theme_minimal()
+barplot + labs(x="Cluster", y = "Cell count")
+```
+
+The low number of cell count in the potential Hair Cell cluster roughly agrees with what is published in scientific literature [9].
+
+However, to annotate this specific cluster as a cluster of HC, further confirmations are needed. In this line several markers for different cell lineages are prepared:
+
+  * Otic Epithelium cells
+  
+```{r}
+oep <- c(
+'EPCAM',
+'CDH1',
+'SOX2',
+'SIX1',
+'OC90',
+'SOX10',
+'FBXO2',
+'LMX1A',
+'PAX2',
+'PAX8',
+'DLX5',
+'GBX2',
+'JAG1',
+'TBX2',
+'COL9A2',
+'OTOA',
+'MYO5C',
+'OTOL1',
+'USH1C',
+'PCDH9')
+```
+
+  * General Hair Cells
+  
+```{r}
+ghc <- c('ATOH1',
+'MYO7A',
+'MYO6',
+'PCP4',
+'ANXA4',
+'GFI1',
+'ESPN',
+'TMPRSS3',
+'BDNF',
+'CCER2',
+'GNG8',
+'POU4F3',
+'OTOF',
+'FSIP1',
+'ZBBX',
+'SKOR1',
+'DNAH5',
+'SCL26A5',
+'GATA3',
+'LMOD3',
+'FGF8',
+'TMPRSS3',
+'INSM1',
+'DNM3'
+)
+```
+
+  * Markers for all other clusters
+  
+```{r}
+oc <- c('TTr',
+'CLIC6',
+'HTRC2',
+'PLTP',
+'CLDN3',
+'TFAP2A',
+'KRT8',
+'TP63',
+'KRT19',
+'KRT5',
+'CXCL14',
+'DSP',
+'KRT18',
+'COL17A1',
+'TYR',
+'TYRP1',
+'ECT',
+'SOX10',
+'EDNRB',
+'POSTN',
+'PPRRX1',
+'TWIST1',
+'VIM',
+'PDGFRA',
+'TWIST2',
+'TTN',
+'PAX7',
+'ACTC1',
+'MYLPF',
+'TNNTI',
+'TNNII')
+```
+
+  * Gene of interest for the user (I)
+  
+```{r}
+gi1 <- c('CDH1',
+'SOX2',
+'SIX1',
+'OC90',
+'SOX10',
+'FBXO2',
+'LMX1A',
+'ATOH1',
+'ANXA4',
+'GFI1',
+'CCER2',
+'POU4F3',
+'GATA3',
+'MAFB',
+'NEUROD1',
+'TNTKR3',
+'PRPH',
+'NTRK3',
+'STMN2',
+'DCX',
+'TUBB3',
+'OTX1',
+'ZIC1',
+'ZIC2',
+'PAX6',
+'PAX3',
+'OTX2')
+```
+
+  * Gene of interest for the user (II)
+  
+```{r}
+gi2 <- c(
+  'TTr',
+'CLIC6',
+'HTRC2',
+'PLTP',
+'CLDN3',
+'TFAP2A',
+'KRT8',
+'TP63',
+'KRT19',
+'KRT5',
+'CXCL14',
+'DSP',
+'KRT18',
+'COL17A1',
+'TYR',
+'TYRP1',
+'ECT',
+'SOX10',
+'EDNRB',
+'POSTN',
+'PPRRX1',
+'TWIST1',
+'VIM',
+'PDGFRA',
+'TWIST2',
+'TTN',
+'PAX7',
+'ACTC1',
+'TNNTI',
+'TNNII'
+)
+```
+
+For improving the visualization, each individual plot has been separated instead of being placed inside a grid.
+
+### Otic epithelium markers
+
+```{r}
+for (marker in oep){
+  tryCatch({ print(FeaturePlot(anno.epcam, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print("WARNING")})
+}
+```
+
+```{r, fig.width=10, fig.height=7, out.width = "100%", out.height = "100%"}
+for (marker in oep){
+  print(VlnPlot(anno.epcam, marker))
+}
+```
+
+### General Hair Cells markers
+
+```{r}
+for (marker in ghc){
+  tryCatch({print(FeaturePlot(anno.epcam, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print("WARNING")})
+}
+```
+
+
+```{r, fig.width=10, fig.height=7, out.width = "100%", out.height = "100%"}
+for (marker in ghc){
+  tryCatch({print(VlnPlot(anno.epcam, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print("WARNING")})
+}
+```
+
+
+### Other clusters
+
+```{r}
+for (marker in oc){
+  tryCatch({print(FeaturePlot(anno.epcam, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print("WARNING")})
+}
+```
+
+### Sets of genes of interest
+
+To improve the visualization for the different sets of genes of interest, two different heatmaps have been included:
+
+```{r, fig.width=10, fig.height=7, out.width = "100%", out.height = "100%"}
+DoHeatmap(anno.epcam, features = gi1)
+```
+
+```{r, fig.width=10, fig.height=7, out.width = "100%", out.height = "100%"}
+DoHeatmap(anno.epcam, features = gi2)
+```
+
+Furthermore, two dotplots have also been included to represent the expression level of a set of genes per cluster:
+
+```{r}
+DotPlot(anno.epcam, features=gi1) + coord_flip()
+```
+
+```{r}
+DotPlot(anno.epcam, features=gi2) + coord_flip()
+```
+
+### Identification of HC cluster
+
+From inspection of the different cluster and the combination of the information given by the different figures displayed, it can be stated that cluster 13 is mainly composed by Hair Cells.
+
+```{r}
+cells.use <- WhichCells(anno.epcam, idents = '13')
+anno <- SetIdent(anno, cells = cells.use, value = 'Reclustered HC')
+```
+
+```{r}
+DimPlot(anno, reduction = "umap", group.by = "ident")
+```
+
+```{r}
+DimPlot(anno, reduction = "umap", group.by = "ident", cells.highlight = cells.use, sizes.highlight = 0.3) + NoLegend()
+```
+
+## Merging two experimental runs: Dataset harmonizations & Downstream analysis
+
+Due to the low number of Hair Cells identified in this first experiment, a second run of scRNA-seq was performed on a different set of ear organoids and following a more controlled protocol. 
+
+To have more data available, both the first and second run were merged into a single Seurat object to further analyze this data and increase the statistical power.
+
+Despite the output of the dataset integration procedure is not going to be shown in this report, the methodology followed is explained.
+
+First we load the data from the server and we identify the source of each dataset
+
+```{r, eval=FALSE}
+oldAnalysis <- readRDS(file = paste(dataDirs$day60_old$seuratReport, "/scData.rds",sep = ""))
+newAnalysis <- readRDS(file = paste(dataDirs$day60_new$scData, "/scData.rds",sep = ""))
+```
+
+
+```{r, eval=FALSE}
+oldAnalysis$experiment <- "OLD"
+newAnalysis$experiment <- "NEW"
+```
+
+Then, the two datasets can be combined using FindIntegrationAnchors() and IntegrateData() from Seurat package.
+
+```{r, eval=FALSE}
+anchors <- FindIntegrationAnchors(object.list = list(oldAnalysis, newAnalysis), dims = 1:20)
+combined <- IntegrateData(anchorset = anchors, dims = 1:20)
+```
+
+To keep working with the combined dataset, it will be loaded from a saved object:
+
+```{r}
+combined <- readRDS(file = "combinedSeurat.rds")
+```
+
+### Standard workflow on the combined dataset
+
+```{r}
+combined <- ScaleData(combined, verbose = FALSE)
+combined <- RunPCA(combined, npcs = 30, verbose = FALSE)
+ElbowPlot(combined)
+```
+
+### Dimensionality Reduction
+
+```{r}
+combined <- RunUMAP(combined, reduction = "pca", dims = 1:20)
+combined <- FindNeighbors(combined, reduction = "pca", dims = 1:20, k.param = 9)
+combined <- FindClusters(combined, resolution = 0.5)
+```
+
+To discard possible batch effects, the combined dataset is stratified by the original experiment. 
+
+```{r, fig.width=15, fig.height=15}
+p1 <- DimPlot(combined, reduction = "umap", group.by = "experiment")
+p2 <- DimPlot(combined, reduction = "umap", label = TRUE)
+plot_grid(p1, p2)
+```
+
+```{r}
+DimPlot(combined, reduction = "umap", split.by = "experiment")
+```
+
+### Identification of HC cluster
+
+Once the merging has been done and no batch effect is identified, the annotation of a hypothetical HC cluster can be addressed. 
+
+Note that when combining both datasets, some important genes for the identification of this small cluster (HC) such as MYO7A [9] does not appear in the new assay as it has likely been discarded due to its low presence during QC or during the merging of both datasets (due to integration of anchors). 
+
+```{r}
+ghc <- c('ATOH1',
+'MYO7A',
+'MYO6',
+'PCP4',
+'ANXA4',
+'GFI1',
+'ESPN',
+'TMPRSS3',
+'BDNF',
+'CCER2',
+'GNG8',
+'POU4F3',
+'OTOF',
+'FSIP1',
+'ZBBX',
+'SKOR1',
+'DNAH5',
+'SCL26A5',
+'GATA3',
+'LMOD3',
+'FGF8',
+'INSM1',
+'DNM3'
+)
+```
+
+```{r}
+for (marker in ghc){
+  tryCatch({print(FeaturePlot(combined, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+To improve the visualization of the heatmap, only a subset of clusters are dislpayed (small clusters, those that are likely to be of interest).
+
+```{r, fig.width=15, fig.height=15}
+DoHeatmap(combined, features = ghc, cells = WhichCells(combined, idents = c("8","9","10","11","12","13","14","15","16","17","18","19","20")))
+```
+
+The number of cells per cluster are:
+
+```{r}
+cellCountperCluster <- data.frame(id = Idents(combined))
+barplot = ggplot(data=cellCountperCluster, aes(x=id)) + 
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust=-1) +
+  theme_minimal()
+barplot + labs(x="Cluster", y = "Cell count")
+```
+
+And the expression Dotplot of the markers is:
+
+```{r}
+DotPlot(combined, features=ghc) + coord_flip() + theme(axis.text.x = element_text(size = 8))     
+```
+
+The violin plots can be used to further investigate specific clusters:
+
+```{r}
+for (marker in ghc){
+  tryCatch({print(print(VlnPlot(combined, marker)))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+From the analysis of these markers, cluster 20 is likely to be a cluster made of HC
+
+```{r}
+cells.use <- WhichCells(combined, idents = '20')
+DimPlot(combined, reduction = "umap", group.by = "ident", cells.highlight = cells.use, sizes.highlight = 0.3) + NoLegend()
+```
+
+
+### Identification of Otic Epithelium Cluster
+
+In order to address reproducibility and to test the agreement of the results shown in this analysis compared to a reference study [9], it is necessary to identify a cluster containing Otic Epithelial cells. 
+
+```{r}
+oep <- c(
+'EPCAM',
+'CDH1',
+'SOX2',
+'SIX1',
+'OC90',
+'SOX10',
+'FBXO2',
+'LMX1A',
+'PAX2',
+'PAX8',
+'DLX5',
+'GBX2',
+'JAG1',
+'TBX2',
+'COL9A2',
+'OTOA',
+'MYO5C',
+'OTOL1',
+'USH1C',
+'PCDH9')
+```
+
+```{r}
+for (marker in oep){
+  tryCatch({print(FeaturePlot(combined, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+```{r, fig.width=15, fig.height=15}
+DoHeatmap(combined, features = ghc)
+```
+
+```{r}
+DotPlot(combined, features=oep) + coord_flip() + theme(axis.text.x = element_text(size = 8))     
+```
+
+
+```{r}
+for (marker in oep){
+  tryCatch({print(VlnPlot(combined, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+As in the previous section, from the analysis of the different markers, cluster 13 is likely to be Otic Epithelial cells.
+
+### Assessing analysis reproducibility
+
+Figure 6 E and H from Steinhard et al. [9] shows a comparison of between HC and Otic Epithelial cells for two set of genes. The first set of genes are mainly present in the first group of cells, while the second set of genes are mainly present in the OEC. 
+
+```{r}
+hc_stei <- c(
+  "ATOH1",
+  "MYO7A",
+  "OTOF",
+  "STRC",
+  "ESPN",
+  "GPX2",
+  "PCDH15",
+  "CDH23",
+  "USH2A",
+  "POU4F3",
+  "CABP2",
+  "GFI1",
+  "USH1C",
+  "RIPOR2",
+  "MYO6",
+  "MYO15A",
+  "CIB2",
+  "PCP4",
+  "CALM2",
+  "LHFPL5"
+)
+```
+
+```{r}
+oep_stei <- c(
+  "PAX8",
+  "PAX2",
+  "OC90",
+  "HMX3",
+  "DLX3", 
+  "DLX5",
+  "SALL4",
+  "DUSP6",
+  "SPRY2",
+  "SIX1",
+  "EYA1",
+  "FOXG1",
+  "LMX1A",
+  "OTOA",
+  "APOE",
+  "SMOC2",
+  "SPARCL1",
+  "FBXO2",
+  "COL11A1",
+  "COL9A2"
+)
+```
+
+```{r, fig.width=15, fig.height=15}
+VlnPlot(combined, hc_stei, idents = c("20", "13"))
+```
+
+```{r, fig.width=15, fig.height=15}
+VlnPlot(combined, oep_stei, idents = c("20", "13"))
+```
+
+A visual inspection between the two set of figures generated in this report and the two subfigures from the reference, show a similar intercluster variation for the specified set of cells. 
+
+
+# Discussion
+
+While using only the first run of the experiment, identifying a population of Hair Cells has been proved to be challenging. Many problems arise when analyzing a rare population using scRNA-seq, mainly due to the dropout, noise and cell to cell variability [11].
+
+Aware of these problems, FACS sorting was done to increase the percentage of HC and to facilitate its clustering. Nevertheless, the results of FACS were not as expected. Proof of it is the identification of neuron markers and neuronal populations, which increased the cell variability.
+
+However, the bioinformatic approach followed to cluster the population of interest resulted in better results as can be seen after the reclustering of EPCAM+ cells. Nevertheless, the results obtained by this methodology must be taken carefully, as stablishing a threshold in a single gene for deciding which cells to keep might induce to wrong results due to dropouts. 
+
+It is interesting to see how keeping only clusters with a biology similar to HC did not produce satisfying results. This might be due to the high number of cells selected with this approach. Hence, a combination of thresholding and selection of biologically-related clusters might be a more correct approach to identify Hair Cells populations. 
+
+The second experimental run resulted in a proper sorting of EPCAM+ cells, as no Neuronal populations are found. Furthermore, this time the number and percentage of potential Hair Cells are slightly increased as can be observed by marker analysis of the report generated by the FGCZ.
+
+Both experimental runs were merged following a Seurat standard pipeline, and by visual inspection no batch effects were identified after the combination. This time, Hair Cells potentially formed their own cluster, so the combination of both runs resulted in higher statistical power for identifying them. Nevertheless, these findings are still pending the confirmation of the group leader, hence are not finals. 
+
+With these results, gene expression can now be studied in the Hair Cells cluster, hence opening the possibility to further characterize this rare population.
+
+# Conclusion
+
+The characterization of human Hair Cells is an extremely challenging task. The almost null regeneration and their difficult access make them difficult to study from in-vivo models. This way, characterizing this population in-vitro becomes a possible solution. However, developing Hair Cells from iPSC and characterize their gene expression is also difficult due to the low number of cells that differentiate into this cell type.
+
+In this project, a bioinformatic approach has been followed to identify a population of Hair Cells following two strategies: the first strategy used an already-analyzed dataset and by selecting cells of interest, a reclustering was performed. The second strategy was to merge this already processed dataset with a newly sequenced dataset. The combination of both datasets facilitated the identification of this extremely rare population of cells.
+
+Finally, to confirm the correctness of the results obtained from this analysis, results were compared to those obtained in [9].
+
+# References
+
+[1] Gomaa, N. A., Jimoh, Z., Campbell, S., Zenke, J. K., & Szczepek, A. J. (2020). Biomarkers for Inner Ear Disorders: Scoping Review on the Role of Biomarkers in Hearing and Balance Disorders. In Diagnostics (Vol. 11, Issue 1, p. 42). MDPI AG. https://doi.org/10.3390/diagnostics11010042
+
+[2] WHO. Deafness and hearing loss. World Health Organization. https://www.who.int/health-topics/hearing-loss#tab=tab_1 
+
+[3] Tang, P.-C., Hashino, E., & Nelson, R. F. (2020). Progress in Modeling and Targeting Inner Ear Disorders with Pluripotent Stem Cells. In Stem Cell Reports (Vol. 14, Issue 6, pp. 996–1008). Elsevier BV. https://doi.org/10.1016/j.stemcr.2020.04.008
+
+[4] Roccio, M., & Edge, A. S. B. (2019). Inner ear organoids: new tools to understand neurosensory cell development, degeneration and regeneration. In Development (Vol. 146, Issue 17). The Company of Biologists. https://doi.org/10.1242/dev.177188
+
+[5] van der Valk, W. H., Steinhart, M. R., Zhang, J., & Koehler, K. R. (2020). Building inner ears: recent advances and future challenges for in vitro organoid systems. In Cell Death &amp; Differentiation (Vol. 28, Issue 1, pp. 24–34). Springer Science and Business Media LLC. https://doi.org/10.1038/s41418-020-00678-8
+
+[6] Lee, J., Rabbani, C. C., Gao, H., Steinhart, M. R., Woodruff, B. M., Pflum, Z. E., Kim, A., Heller, S., Liu, Y., Shipchandler, T. Z., & Koehler, K. R. (2020). Hair-bearing human skin generated entirely from pluripotent stem cells. In Nature (Vol. 582, Issue 7812, pp. 399–404). Springer Science and Business Media LLC. https://doi.org/10.1038/s41586-020-2352-3
+
+[7] Nist-Lund, C., Kim, J., & Koehler, K. R. (2022). Advancements in inner ear development, regeneration, and repair through otic organoids. In Current Opinion in Genetics &amp; Development (Vol. 76, p. 101954). Elsevier BV. https://doi.org/10.1016/j.gde.2022.101954
+
+[8] van der Valk, W. H., van Beelen, E. S. A., Steinhart, M. R., Nist-Lund, C., de Groot, J. C. M. J., van Benthem, P. P. G., Koehler, K. R., & Locher, H. (2022). A Single-Cell Level Comparison of Human Inner Ear Organoids and the Human Cochlea and Vestibular Organs. Cold Spring Harbor Laboratory. https://doi.org/10.1101/2022.09.28.509835
+
+[9] Steinhart, M. R., Serdy, S. A., van der Valk, W. H., Zhang, J., Kim, J., Lee, J., & Koehler, K. R. (2021). Defining Inner Ear Cell Type Specification at Single-Cell Resolution in a Model of Human Cranial Development. In SSRN Electronic Journal. Elsevier BV. https://doi.org/10.2139/ssrn.3974124
+
+[10] Guo, J., Chai, R., Li, H., & Sun, S. (2019). Protection of Hair Cells from Ototoxic Drug-Induced Hearing Loss. In Hearing Loss: Mechanisms, Prevention and Cure (pp. 17–36). Springer Singapore. https://doi.org/10.1007/978-981-13-6123-4_2
+
+[11] Johansen, N., & Quon, G. (2019). scAlign: a tool for alignment, integration, and rare cell identification from scRNA-seq data. In Genome Biology (Vol. 20, Issue 1). Springer Science and Business Media LLC. https://doi.org/10.1186/s13059-019-1766-4
+
+# Aknowledgment
+
+This project has been done for the course STA426 at UZH in collaboration with Dr. Marta Roccio and under the supervision of Prof. Hubert Rehrauer and Prof. Mark D. Robinson.
