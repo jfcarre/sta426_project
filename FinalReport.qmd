@@ -2,6 +2,7 @@
 title: "STA426 Final Project"
 author: "José F Carreño"
 format: html
+embed-resources: true
 editor: source
 ---
 
@@ -30,12 +31,19 @@ resultDir <- "/scratch/jcarreno/sta426_project/results"
 
 # Abstract
 
+Earing disorders are mainly caused by the damage or destruction of a rare population of cells known as Hair Cells. Hair cells are in charge of sensing, earing and balance and are found in the inner ear. Studying inner ear development is extremely useful for understanding the behavior of these cells, however, accessing it is extremely difficult. 
+
+The combination of tools such as 3D organoids and single cell RNA sequencing has allowed the study and characterization of the aforementioned cell population. This project focuses on the analysis of scRNA-seq data coming from 3D organoids of the human inner ear. 
+
+The main contributions of this project are related to the identification of Hair Cell populations in scRNA-seq data. The approaches followed were a reclustering of a subset of cells of interest, as well as the merge of two datasets of interest. To ensure that the results were meaningful, the results obtained are compared to a reference study recently published and that followed a similar experimental and bioinformatic analysis. 
+
 # Motivation & Introduction
 
-- Inner ear development
-- Organoids as biological models
-- Single cell analysis of the 3D organoids
-- scRNA-seq for the identification of a rare cell population
+Inner ear disorders affect a large amount of the world population either as earing diseases or balance disorders [1, 2]. In this line, developing inner ear models to study this biological systems have been of great interest [3]. Nevertheless, most of these models were developed for mouse, as accessing inner ear in humans require invasive techniques. This, together with the low regeneration rate of Hair Cells (HC), increased the difficulty of in-vivo analysis of this cell population.
+
+In this line, research about human hair cells, inner ear organogenesis, and inner ear organoids has been attracting interest in the scientific community [4-6]. Furthermore, the combination of this biological tool with the current advances on single-cell RNA sequencing (scRNA-seq) has allowed the characterisation of this rare population [7-9].
+
+With these new advances, the field of research of the human inner ear has improved its ability to identify and characterize cell populations in the inner ear. The importance of characterizing human hair cells reside in its main role in hearing, and it has been shown that some drugs can have important side effects producing hearing loss or deafness [10].
 
 # Methodology & Results
 
@@ -64,7 +72,7 @@ After library preparation and sequencing, the FGCZ performed quality control and
 
 Once this analysis was performed, the user interested in this analysis considered that the clustering was not totally useful for their needs. The reason was that the population of interest was not identified by this initial clustering, however by marker analysis it appears to be expressed. In the scope of this request this project emerged, which aim is to further extend the initial analysis done by the FGCZ and identify a population of Hair Cells in the original data. 
 
-The genes of interest for the Hair Cells [REFERENCES] are shown: 
+The genes of interest for the Hair Cells [9] are shown: 
 
 ```{r}
 hc <- c("ATOH1", 
@@ -218,7 +226,7 @@ barplot = ggplot(data=cellCountperCluster, aes(x=id)) +
 barplot + labs(x="Cluster", y = "Cell count")
 ```
 
-The low number of cell count in the potential Hair Cell cluster roughly agrees with what is published in scientific literature [REFERENCES].
+The low number of cell count in the potential Hair Cell cluster roughly agrees with what is published in scientific literature [9].
 
 However, to annotate this specific cluster as a cluster of HC, further confirmations are needed. In this line several markers for different cell lineages are prepared:
 
@@ -536,7 +544,7 @@ DimPlot(combined, reduction = "umap", split.by = "experiment")
 
 Once the merging has been done and no batch effect is identified, the annotation of a hypothetical HC cluster can be addressed. 
 
-Note that when combining both datasets, some important genes for the identification of this small cluster (HC) such as MYO7A [REFERENCE] does not appear in the new assay as it has likely been discarded due to its low presence during QC or during the merging of both datasets (due to integration of anchors). 
+Note that when combining both datasets, some important genes for the identification of this small cluster (HC) such as MYO7A [9] does not appear in the new assay as it has likely been discarded due to its low presence during QC or during the merging of both datasets (due to integration of anchors). 
 
 ```{r}
 ghc <- c('ATOH1',
@@ -616,7 +624,7 @@ DimPlot(combined, reduction = "umap", group.by = "ident", cells.highlight = cell
 
 ### Identification of Otic Epithelium Cluster
 
-In order to address reproducibility and to test the agreement of the results shown in this analysis compared to a reference study [REFERENCE STEINHARD], it is necessary to identify a cluster containing Otic Epithelial cells. 
+In order to address reproducibility and to test the agreement of the results shown in this analysis compared to a reference study [9], it is necessary to identify a cluster containing Otic Epithelial cells. 
 
 ```{r}
 oep <- c(
@@ -671,7 +679,7 @@ As in the previous section, from the analysis of the different markers, cluster 
 
 ### Assessing analysis reproducibility
 
-Figure 6 E and H from Steinhard et al. [REFERENCE] shows a comparison of between HC and Otic Epithelial cells for two set of genes. The first set of genes are mainly present in the first group of cells, while the second set of genes are mainly present in the OEC. 
+Figure 6 E and H from Steinhard et al. [9] shows a comparison of between HC and Otic Epithelial cells for two set of genes. The first set of genes are mainly present in the first group of cells, while the second set of genes are mainly present in the OEC. 
 
 ```{r}
 hc_stei <- c(
@@ -736,7 +744,7 @@ A visual inspection between the two set of figures generated in this report and 
 
 # Discussion
 
-While using only the first run of the experiment, identifying a population of Hair Cells has been proved to be challenging. Many problems arise when analyzing a rare population using scRNA-seq, mainly due to the dropout, noise and cell to cell variability [REFERENCE].
+While using only the first run of the experiment, identifying a population of Hair Cells has been proved to be challenging. Many problems arise when analyzing a rare population using scRNA-seq, mainly due to the dropout, noise and cell to cell variability [11].
 
 Aware of these problems, FACS sorting was done to increase the percentage of HC and to facilitate its clustering. Nevertheless, the results of FACS were not as expected. Proof of it is the identification of neuron markers and neuronal populations, which increased the cell variability.
 
@@ -752,11 +760,36 @@ With these results, gene expression can now be studied in the Hair Cells cluster
 
 # Conclusion
 
+The characterization of human Hair Cells is an extremely challenging task. The almost null regeneration and their difficult access make them difficult to study from in-vivo models. This way, characterizing this population in-vitro becomes a possible solution. However, developing Hair Cells from iPSC and characterize their gene expression is also difficult due to the low number of cells that differentiate into this cell type.
 
+In this project, a bioinformatic approach has been followed to identify a population of Hair Cells following two strategies: the first strategy used an already-analyzed dataset and by selecting cells of interest, a reclustering was performed. The second strategy was to merge this already processed dataset with a newly sequenced dataset. The combination of both datasets facilitated the identification of this extremely rare population of cells.
+
+Finally, to confirm the correctness of the results obtained from this analysis, results were compared to those obtained in [9].
 
 # References
 
-[1] hc markers
+[1] Gomaa, N. A., Jimoh, Z., Campbell, S., Zenke, J. K., & Szczepek, A. J. (2020). Biomarkers for Inner Ear Disorders: Scoping Review on the Role of Biomarkers in Hearing and Balance Disorders. In Diagnostics (Vol. 11, Issue 1, p. 42). MDPI AG. https://doi.org/10.3390/diagnostics11010042
 
-[2] Steinhard
+[2] WHO. Deafness and hearing loss. World Health Organization. https://www.who.int/health-topics/hearing-loss#tab=tab_1 
 
+[3] Tang, P.-C., Hashino, E., & Nelson, R. F. (2020). Progress in Modeling and Targeting Inner Ear Disorders with Pluripotent Stem Cells. In Stem Cell Reports (Vol. 14, Issue 6, pp. 996–1008). Elsevier BV. https://doi.org/10.1016/j.stemcr.2020.04.008
+
+[4] Roccio, M., & Edge, A. S. B. (2019). Inner ear organoids: new tools to understand neurosensory cell development, degeneration and regeneration. In Development (Vol. 146, Issue 17). The Company of Biologists. https://doi.org/10.1242/dev.177188
+
+[5] van der Valk, W. H., Steinhart, M. R., Zhang, J., & Koehler, K. R. (2020). Building inner ears: recent advances and future challenges for in vitro organoid systems. In Cell Death &amp; Differentiation (Vol. 28, Issue 1, pp. 24–34). Springer Science and Business Media LLC. https://doi.org/10.1038/s41418-020-00678-8
+
+[6] Lee, J., Rabbani, C. C., Gao, H., Steinhart, M. R., Woodruff, B. M., Pflum, Z. E., Kim, A., Heller, S., Liu, Y., Shipchandler, T. Z., & Koehler, K. R. (2020). Hair-bearing human skin generated entirely from pluripotent stem cells. In Nature (Vol. 582, Issue 7812, pp. 399–404). Springer Science and Business Media LLC. https://doi.org/10.1038/s41586-020-2352-3
+
+[7] Nist-Lund, C., Kim, J., & Koehler, K. R. (2022). Advancements in inner ear development, regeneration, and repair through otic organoids. In Current Opinion in Genetics &amp; Development (Vol. 76, p. 101954). Elsevier BV. https://doi.org/10.1016/j.gde.2022.101954
+
+[8] van der Valk, W. H., van Beelen, E. S. A., Steinhart, M. R., Nist-Lund, C., de Groot, J. C. M. J., van Benthem, P. P. G., Koehler, K. R., & Locher, H. (2022). A Single-Cell Level Comparison of Human Inner Ear Organoids and the Human Cochlea and Vestibular Organs. Cold Spring Harbor Laboratory. https://doi.org/10.1101/2022.09.28.509835
+
+[9] Steinhart, M. R., Serdy, S. A., van der Valk, W. H., Zhang, J., Kim, J., Lee, J., & Koehler, K. R. (2021). Defining Inner Ear Cell Type Specification at Single-Cell Resolution in a Model of Human Cranial Development. In SSRN Electronic Journal. Elsevier BV. https://doi.org/10.2139/ssrn.3974124
+
+[10] Guo, J., Chai, R., Li, H., & Sun, S. (2019). Protection of Hair Cells from Ototoxic Drug-Induced Hearing Loss. In Hearing Loss: Mechanisms, Prevention and Cure (pp. 17–36). Springer Singapore. https://doi.org/10.1007/978-981-13-6123-4_2
+
+[11] Johansen, N., & Quon, G. (2019). scAlign: a tool for alignment, integration, and rare cell identification from scRNA-seq data. In Genome Biology (Vol. 20, Issue 1). Springer Science and Business Media LLC. https://doi.org/10.1186/s13059-019-1766-4
+
+# Aknowledgment
+
+This project has been done for the course STA426 at UZH in collaboration with Dr. Marta Roccio and under the supervision of Prof. Hubert Rehrauer and Prof. Mark D. Robinson.
