@@ -70,7 +70,28 @@ DimPlot(anno.subset, reduction = "umap", label = TRUE)
 ```
 
 ```{r}
-hc <- c("ATOH1", "ANXA4", "GFI1", "CCER2", "POU4F3")
+hc <- c("ATOH1", "ANXA4", "GFI1", "CCER2", "POU4F3", "ATOH1",
+"MYO7A",
+"MYO6",
+"PCP4",
+"ESPN",
+"TMPRSS3",
+"BDNF",
+"GNG8",
+"POU4F3",
+"OTOF",
+"FSIP1",
+"ZBBX",
+"SKOR1",
+"DNAH5",
+"SCL26A5",
+"GATA3",
+"LMOD3",
+"FGF8",
+"TMPRSS3",
+"INSM1",
+"DNM3"
+)
 ```
 
 ```{r, fig.width=15, fig.height=10}
@@ -99,6 +120,7 @@ DoHeatmap(anno.subset, features = hc)
 ```
 
 After running the two methods, we have ended up in the same situation: The clusters of hypothetical hair cells are now in the same cluster, however these cells are mixed with other cell types.
+
 ## Select EPCAM+ cells
 
 
@@ -127,5 +149,7 @@ DimPlot(anno.epcam, reduction = "umap", label = TRUE)
 DoHeatmap(anno.epcam, features = hc)
 ```
 
+```{r}
 
-PREMIO!! Cluster 13 contains only Hair Cells!
+```
+

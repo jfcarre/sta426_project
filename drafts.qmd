@@ -32,10 +32,12 @@ resultDir <- "/scratch/jcarreno/sta426_project/results"
 htmlFileRanger <- paste(dataDirs$day60$cellRanger, "/web_summary.html",sep = "")
 htmlFileSeurat <- paste(dataDirs$day60$seuratReport, "/00index.html",sep = "")
 htmlFileSeurat2 <- paste(dataDirs$day60$labeledObject, "/day60oticvesicle-ScSeurat.html",sep = "")
+htmlFileSeuratNew <- "/srv/gstore/projects/p29781/o30306_ScSeurat_2022-12-20--22-03-42/IEOday60_CD4protocol_SCReport/00index.html" 
 viewer <- getOption("viewer")
 viewer(htmlFileRanger)
 viewer(htmlFileSeurat)
 viewer(htmlFileSeurat2)
+viewer(htmlFileSeuratNew)
 ```
 
 ```{r}
