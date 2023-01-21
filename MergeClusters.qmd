@@ -37,13 +37,13 @@ resultDir <- "/scratch/jcarreno/sta426_project/results"
 
 First we load the data from the server and we identify the source of each dataset
 
-```{r}
+```{r, eval = FALSE}
 oldAnalysis <- readRDS(file = paste(dataDirs$day60_old$seuratReport, "/scData.rds",sep = ""))
 newAnalysis <- readRDS(file = paste(dataDirs$day60_new$scData, "/scData.rds",sep = ""))
 ```
 
 
-```{r}
+```{r, eval = FALSE}
 oldAnalysis$experiment <- "OLD"
 newAnalysis$experiment <- "NEW"
 ```
@@ -53,16 +53,16 @@ newAnalysis$experiment <- "NEW"
 
 Now, we can merge the datasets using FindIntegrationAnchors() and IntegrateData() from Seurat package.
 
-```{r}
+```{r, eval = FALSE}
 anchors <- FindIntegrationAnchors(object.list = list(oldAnalysis, newAnalysis), dims = 1:20)
 ```
 
-```{r}
+```{r, eval = FALSE}
 combined <- IntegrateData(anchorset = anchors, dims = 1:20)
 ```
 
 ```{r}
-#combined <- readRDS(file = "combinedSeurat.rds")
+combined <- readRDS(file = "combinedSeurat.rds")
 ```
 
 
@@ -104,6 +104,9 @@ Save the combined data
 
 ```{r}
 #saveRDS(combined, file = "combinedSeurat.rds")
+#combined <- readRDS(file = "combinedSeurat.rds")
+DefaultAssay(combined) <- "RNA"
+combined <- ScaleData(combined, verbose = FALSE)
 ```
 
 
@@ -226,7 +229,7 @@ DoHeatmap(combined, features = ghc)
 
 
 ```{r}
-DotPlot(combined, features=oep) + coord_flip() + theme(axis.text.x = element_text(size = 8))     
+DotPlot(combined, features=oep) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
 ```
 
 ```{r}
