@@ -1,22 +1,77 @@
 ---
-title: "MergeDatasets"
-author: "Jose F Carreño"
-format: html
-embed-resources: true
-editor: source
+title: "Combine day60_otic + day60_ctrl"
+author: "Hubert Rehrauer / Jose F Carreño"
+output: 
+  html_document:
+    self_contained: true
+    includes:
+      in_header: !expr system.file("templates/fgcz_header.html", package="ezRun", lib.loc=.libPaths())
+    css: !expr system.file("templates/fgcz.css", package="ezRun", lib.loc=.libPaths())
+    code_folding: hide
 editor_options: 
   chunk_output_type: inline
 ---
 
-### Load necessary libraries
+#  {.tabset}
+
 
 ```{r, warning=FALSE, include=FALSE}
+### Load necessary libraries
+
 library(Seurat)
 library(cowplot)
 library(ggplot2)
 library(dplyr) 
+library(ezRun)
 ```
 
+
+## Overview
+
+We select the cells based on them being OEP or expressing HC markers. As a second steps the two samples are combined. Clustering the integrated data gives two clusters that are hair cells (12 and 13). We name them "hc1" and "hc2".
+
+Important are the tabs "Markers" where you find markers for each cluster, [posMarkers.xlsx](posMarkers.xlsx) and "HC cluster markers" where you find markers differentiating the two HC clusters, [hcMarkers.xlsx](hcMarkers.xlsx).
+
+The interactive explorer ist at <https://fgcz-shiny.uzh.ch/fgcz_iSEE/?data=p29781/additional-analyses/2023-01-21-MergeSamples/sce_h5>
+
+The organization of this report is as follows:
+
+-   Overview: Definition of important variables for the report
+
+-   Analysis 1: Select then merge
+
+    -   Select cells with a given gene expression pattern + OEP cells for each dataset independently
+    -   Merge both datasets
+    -   Reclustering of selected cells
+    -   Subsequent marker analysis
+
+-   Analysis 2: Merge then select
+
+    -   Merge both datasets
+    -   Select cells with a given gene expression pattern + OEP cells in the merged dataset
+    -   Reclustering of selected cells
+    -   Subsequent marker analysis
+
+-   Analysis 3: Merge then select (EPCAM+)
+
+    -   Merge both datasets
+    -   Select EPCAM+ cells
+    -   Reclustering of selected cells
+    -   Subsequent marker analysis
+
+-   Analysis 4: Merge then select (SOX2+)
+
+    -   Merge both datasets
+    -   Select SOX2+ cells
+    -   Reclustering of selected cells
+    -   Subsequent marker analysis
+
+-   Analysis 5: Merge then select (POU4F3+)
+
+    -   Merge both datasets
+    -   Select POU4F3+ cells
+    -   Reclustering of selected cells
+    -   Subsequent marker analysis
 
 ### Set important paths
 
@@ -64,16 +119,19 @@ dataDirs <- list(
 "/srv/gstore/projects/p27889/additional-analyses/2022-08-19-Seurat-relabeled"
    ) # Not used for now
 )
-dataDirs
+#dataDirs
 
 resultDir <- "/scratch/jcarreno/sta426_project/results"
 ```
 
 ### Genes of interest
 
+This list of genes has been obtained from "list for clustering 7.12.2022.xlsx"
+
 ```{r}
 reference_genes <- list(
-  ghc = c('ATOH1',
+  ghc = c(
+'ATOH1',
 'MYO7A',
 'MYO6',
 'PCP4',
@@ -90,13 +148,40 @@ reference_genes <- list(
 'ZBBX',
 'SKOR1',
 'DNAH5',
-'SCL26A5',
+'SCL26A6',
 'GATA3',
 'LMOD3',
 'FGF8',
 'INSM1',
 'DNM3'
-),
+), # General Hair Cells: All markers
+hc = c(
+'ATOH1',
+'MYO7A',
+'MYO6',
+'PCP4',
+'ANXA4',
+'GFI1',
+'ESPN',
+'TMPRSS3',
+'BDNF',
+'CCER2',
+'GNG8',
+'POU4F3',
+'OTOF'), # Hair Cells
+vhc = c(
+'FSIP1',
+'ZBBX',
+'SKOR1',
+'DNAH5'), #Vestibular Hair Cells
+chc = c(
+ 'SCL26A6',
+'GATA3',
+'LMOD3',
+'FGF8',
+'INSM1',
+'DNM3',
+'TMPRSS3'),  #Cochlear Hair Cells
 oep = c(
 'EPCAM',
 'CDH1',
@@ -121,152 +206,335 @@ oep = c(
 )
 ```
 
-## Analysis {.tabset}
+## Analysis 1: Select then merge
 
-### Merge datasets
-
-#### Load data
+### Compute Modules Scores
 
 First we load the data from the server and we identify the source of each dataset
 
-```{r, eval = FALSE}
+```{r}
 day60_otic <- readRDS(file = paste(dataDirs$day60_otic$labeledObject, "/scData.rds",sep = ""))
 day60_ctrl <- readRDS(file = paste(dataDirs$day60_ctrl$labeledObject, "/scData.rds",sep = ""))
-```
 
-
-```{r, eval = FALSE}
 day60_otic$experiment <- "day60_otic"
 day60_ctrl$experiment <- "day60_ctrl"
 ```
 
+We compute the actual score: \[REFERENCE\]
 
-#### Merge the two datasets
-
-Now, we can merge the datasets using FindIntegrationAnchors() and IntegrateData() from Seurat package.
-
-```{r, eval = FALSE}
-anchors <- FindIntegrationAnchors(object.list = list(day60_otic, day60_ctrl), dims = 1:20)
+```{r}
+day60_otic <- AddModuleScore(day60_otic, features=reference_genes, name="module")
+day60_ctrl <- AddModuleScore(day60_ctrl, features=reference_genes, name="module")
 ```
 
-```{r, eval = FALSE}
-combined <- IntegrateData(anchorset = anchors, dims = 1:20)
+#### Plot scores: day60_otic
+
+```{r, fig.width=20, fig.height=20}
+featNames <- paste0("module", 1:length(reference_genes))
+p1 <- DimPlot(day60_otic, label=TRUE)
+p2 <- FeaturePlot(day60_otic, featNames)
+p3 <- VlnPlot(day60_otic, featNames)
+
+plot_grid(p1, p2, p3, ncol = 2)
 ```
 
 ```{r}
-#combined <- readRDS(file = "combinedSeurat.rds")
+for (i in 1:length(reference_genes)){
+  print(VlnPlot(day60_otic, featNames[i], pt.size=1) + geom_hline(yintercept=0.3) + ggtitle(names(reference_genes)[i]))
+}
 ```
 
-
-### Compute fitness of the merge
-
-#### Dimensionality
-
-We can perform now basic visual inspection to check if the integration has been done properly
+Use only the cells above the threshold and the otic epithelium cells:
 
 ```{r}
-DefaultAssay(combined) <- "integrated"
+useCell <- Idents(day60_otic) == "OEP" | day60_otic$module2 > 0.3 
+day60_oticSel <- day60_otic[ , useCell]
+```
+
+#### Plot scores: day60_ctrl
+
+```{r, fig.width=18, fig.height=15}
+featNames <- paste0("module", 1:length(reference_genes))
+p1 <- DimPlot(day60_ctrl, label=TRUE)
+p2 <- FeaturePlot(day60_ctrl, featNames)
+p3 <- VlnPlot(day60_ctrl, featNames)
+
+plot_grid(p1, p2, p3, ncol = 2)
 ```
 
 ```{r}
-# Run the standard workflow for visualization and clustering
-combined <- ScaleData(combined, verbose = FALSE)
-combined <- RunPCA(combined, npcs = 30, verbose = FALSE)
-ElbowPlot(combined)
+for (i in 1:length(reference_genes)){
+  print(VlnPlot(day60_ctrl, featNames[i], pt.size=1) + geom_hline(yintercept=0.3) + ggtitle(names(reference_genes)[i]))
+}
 ```
-#### Dimensionality Reduction
+
+Use only the cells above the threshold and the otic epithelium cells:
 
 ```{r}
-combined <- RunUMAP(combined, reduction = "pca", dims = 1:20)
-combined <- FindNeighbors(combined, reduction = "pca", dims = 1:20, k.param = 9)
-combined <- FindClusters(combined, resolution = 0.5)
+useCell <- Idents(day60_ctrl) == "OEP" | day60_ctrl$module2 > 0.3 
+day60_ctrlSel <- day60_ctrl[ , useCell]
 ```
 
-
-```{r, fig.width=10, fig.height=5}
-p1 <- DimPlot(combined, reduction = "umap", group.by = "experiment")
-p2 <- DimPlot(combined, reduction = "umap", label = TRUE)
-plot_grid(p1, p2)
-```
-
-
-```{r, fig.width=8, fig.height=8}
-p1<- DimPlot(combined, reduction = "umap", split.by = "experiment")
-p2<- DimPlot(combined, reduction = "umap", group.by = "clusterLabels")
-plot_grid(p1, p2, ncol=1)
-```
-
-Save the combined data
+### Merge datasets
 
 ```{r}
-#saveRDS(combined, file = "combinedSeurat.rds")
-#combined <- readRDS(file = "combinedSeurat.rds")
+day60_oticSel <- FindVariableFeatures(day60_oticSel, nfeatures = 2000)
+day60_ctrlSel <- FindVariableFeatures(day60_ctrlSel, nfeatures = 2000)
+```
+
+From our set of genes stablished in the Overview, check how many of these are not present in our selected cells from day60_otic experiment:
+
+```{r}
+sapply(reference_genes, function(rg){
+  rg %>% setdiff(rownames(day60_oticSel)) %>% length()
+})
+```
+
+```{r}
+anchors <- FindIntegrationAnchors(object.list = list(day60_oticSel, day60_ctrlSel), dims = 1:10)
+```
+
+Integrate the selected cells from both datasets:
+
+```{r}
+combined <- IntegrateData(anchorset = anchors, dims = 1:10)
+```
+
+From our set of genes stablished in the Overview, check how many of these ARE NOT present in the "integrated" assay:
+
+```{r}
+sapply(reference_genes, function(rg){
+  rg %>% setdiff(rownames(combined)) %>% length()
+})
+```
+
+From our set of genes stablished in the Overview, check how many of these ARE present in the "integrated" assay:
+
+```{r}
+sapply(reference_genes, function(rg){
+  rg %>% intersect(rownames(combined)) %>% length()
+})
+```
+
+#### Reclustering
+
+```{r}
 DefaultAssay(combined) <- "RNA"
 combined <- ScaleData(combined, verbose = FALSE)
+combined <- FindVariableFeatures(combined, nfeatures = 3000)
+combined <- RunPCA(combined, npcs = 10, verbose = FALSE)
+ElbowPlot(combined)
 ```
-
-### Compute Module Scores
 
 ```{r}
-combined <- AddModuleScore(combined, features=reference_genes, name="module")
+combined <- RunUMAP(combined, reduction = "pca", dims = 1:10)
 ```
 
-```{r, fig.width=10, fig.height=5}
+```{r}
+combined <- RunTSNE(combined, reduction = "pca", dims = 1:10)
+combined <- FindNeighbors(combined, reduction = "pca", dims = 1:10, k.param = 5)
+```
+
+```{r}
+combined <- FindClusters(combined, resolution = 0.7)
+```
+
+```{r}
+DimPlot(combined, label = TRUE)
+```
+
+```{r}
+DimPlot(combined, group.by = "Condition")
+```
+
+```{r}
+DimPlot(combined, group.by = "clusterLabels")
+```
+
+### Signature Analysis
+
+Compute again the score for each set of genes established in the Overview section:
+
+```{r, fig.width=10, fig.height=10}
 featNames <- paste0("module", 1:length(reference_genes))
-FeaturePlot(combined, featNames)
+FeaturePlot(combined, featNames, order= TRUE)
 ```
 
-```{r, fig.width=15, fig.height=8}
-VlnPlot(combined, featNames)
-VlnPlot(combined, featNames)
-```
+#### Heatmaps
 
-
-
-### Identification of HC
-
-Note: MYO7A is a gene used by Steinhard et al. However, it does not appear in our analysis as it has likely been discarded due to its low presence during QC or during the merging of both datasets.
+Plot the set of genes stablished in the Overview and that are present in the integrated object:
 
 ```{r}
-ghc <- c('ATOH1',
-'MYO7A',
-'MYO6',
-'PCP4',
-'ANXA4',
-'GFI1',
-'ESPN',
-'TMPRSS3',
-'BDNF',
-'CCER2',
-'GNG8',
-'POU4F3',
-'OTOF',
-'FSIP1',
-'ZBBX',
-'SKOR1',
-'DNAH5',
-'SCL26A5',
-'GATA3',
-'LMOD3',
-'FGF8',
-'INSM1',
-'DNM3'
-)
+rgSet <- lapply(reference_genes, intersect, rownames(combined))
+DoHeatmap(combined, unlist(rgSet))
 ```
 
+Heatmap of the General Hair Cells genes
 
 ```{r}
-for (marker in ghc){
+DoHeatmap(combined, reference_genes$ghc)
+```
+
+Heatmap of the Hair Cells genes
+
+```{r}
+DoHeatmap(combined, reference_genes$hc)
+```
+
+Heatmap of the Cochlear Hair Cell genes
+
+```{r}
+DoHeatmap(combined, reference_genes$chc)
+```
+
+Heatmap of the Vestibular Hair Cell genes
+
+```{r}
+DoHeatmap(combined, reference_genes$vhc)
+```
+
+Heatmap of the Otic Epithelium genes
+
+```{r}
+DoHeatmap(combined, reference_genes$oep)
+```
+
+#### UMAPS
+
+UMAPs of the General Hair Cells genes
+
+```{r}
+for (marker in reference_genes$ghc){
   tryCatch({print(FeaturePlot(combined, reduction = "umap", features = marker, order= TRUE))},
            error=function(e){print("ERROR")},
            warning=function(w){print(paste(marker, "not present"))})
 }
 ```
 
-Show subset of clusters (small clusters, those that are likely to be of interest)
+UMAPs of the Hair Cells genes
 
-```{r, fig.width=15, fig.height=15}
-DoHeatmap(combined, features = ghc, cells = WhichCells(combined, idents = c("8","9","10","11","12","13","14","15","16","17","18","19","20")))
+```{r}
+for (marker in reference_genes$hc){
+  tryCatch({print(FeaturePlot(combined, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+UMAPs of the Cochlear Hair Cells genes
+
+```{r}
+for (marker in reference_genes$chc){
+  tryCatch({print(FeaturePlot(combined, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+UMAPs of the Vestibular Hair Cells genes
+
+```{r}
+for (marker in reference_genes$vhc){
+  tryCatch({print(FeaturePlot(combined, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+UMAPs of the Otic Epithilium genes
+
+```{r}
+for (marker in reference_genes$oep){
+  tryCatch({print(FeaturePlot(combined, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+#### Dot plots
+
+Dotplot of the General Hair Cells genes
+
+```{r}
+DotPlot(combined, features=reference_genes$ghc) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
+```
+
+Dotplot of the Hair Cells genes
+
+```{r}
+DotPlot(combined, features=reference_genes$hc) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
+```
+
+Dotplot of the Cochlear Hair Cells genes
+
+```{r}
+DotPlot(combined, features=reference_genes$chc) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
+
+```
+
+Dotplot of the Vestibular Hair Cells genes
+
+```{r}
+DotPlot(combined, features=reference_genes$vhc) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
+
+```
+
+Dotplot of the Otic Epithilium genes
+
+```{r}
+DotPlot(combined, features=reference_genes$oep) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
+```
+
+#### Violin plots
+
+Violin plot of the General Hair Cells genes
+
+```{r}
+for (marker in reference_genes$ghc){
+  tryCatch({print(VlnPlot(combined, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+Violin plot of the Hair Cells genes
+
+```{r}
+for (marker in reference_genes$hc){
+  tryCatch({print(VlnPlot(combined, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+Violin plot of the Cochlear Hair Cells genes
+
+```{r}
+for (marker in reference_genes$chc){
+  tryCatch({print(VlnPlot(combined, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+Violin plot of the Vestibular Hair Cells genes
+
+```{r}
+for (marker in reference_genes$vhc){
+  tryCatch({print(VlnPlot(combined, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+Violin plot of the Otic Epithilum genes
+
+```{r}
+for (marker in reference_genes$oep){
+  tryCatch({print(VlnPlot(combined, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
 ```
 
 Number of cells per cluster:
@@ -280,141 +548,9 @@ barplot = ggplot(data=cellCountperCluster, aes(x=id)) +
 barplot + labs(x="Cluster", y = "Cell count")
 ```
 
-```{r}
-DotPlot(combined, features=ghc) + coord_flip() + theme(axis.text.x = element_text(size = 8))     
-```
+Cluster 18 & 14 are likely to be HC cluster
 
 ```{r}
-for (marker in ghc){
-  tryCatch({print(print(VlnPlot(combined, marker)))},
-           error=function(e){print("ERROR")},
-           warning=function(w){print(paste(marker, "not present"))})
-}
-```
-
-
-```{r}
-cells.use <- WhichCells(combined, idents = '20')
+cells.use <- WhichCells(combined, idents = c('16', '11'))
 DimPlot(combined, reduction = "umap", group.by = "ident", cells.highlight = cells.use, sizes.highlight = 0.3) + NoLegend()
 ```
-
-Cluster 20 is likely to be HC cluster
-
-## Identification of Otic Epithelium
-
-```{r}
-oep <- c(
-'EPCAM',
-'CDH1',
-'SOX2',
-'SIX1',
-'OC90',
-'SOX10',
-'FBXO2',
-'LMX1A',
-'PAX2',
-'PAX8',
-'DLX5',
-'GBX2',
-'JAG1',
-'TBX2',
-'COL9A2',
-'OTOA',
-'MYO5C',
-'OTOL1',
-'USH1C',
-'PCDH9')
-```
-
-
-```{r}
-for (marker in oep){
-  tryCatch({print(FeaturePlot(combined, reduction = "umap", features = marker, order= TRUE))},
-           error=function(e){print("ERROR")},
-           warning=function(w){print(paste(marker, "not present"))})
-}
-```
-
-
-```{r, fig.width=15, fig.height=15}
-DoHeatmap(combined, features = ghc)
-```
-
-
-```{r}
-DotPlot(combined, features=oep) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
-```
-
-```{r}
-for (marker in oep){
-  tryCatch({print(VlnPlot(combined, marker))},
-           error=function(e){print("ERROR")},
-           warning=function(w){print(paste(marker, "not present"))})
-}
-```
-
-
-Cluster 13 is likely to be OEP cells
-
-## Reproduce Fig 6. E, H from Steinhart
-
-```{r}
-hc_stei <- c(
-  "ATOH1",
-  "MYO7A",
-  "OTOF",
-  "STRC",
-  "ESPN",
-  "GPX2",
-  "PCDH15",
-  "CDH23",
-  "USH2A",
-  "POU4F3",
-  "CABP2",
-  "GFI1",
-  "USH1C",
-  "RIPOR2",
-  "MYO6",
-  "MYO15A",
-  "CIB2",
-  "PCP4",
-  "CALM2",
-  "LHFPL5"
-)
-```
-
-```{r}
-oep_stei <- c(
-  "PAX8",
-  "PAX2",
-  "OC90",
-  "HMX3",
-  "DLX3", 
-  "DLX5",
-  "SALL4",
-  "DUSP6",
-  "SPRY2",
-  "SIX1",
-  "EYA1",
-  "FOXG1",
-  "LMX1A",
-  "OTOA",
-  "APOE",
-  "SMOC2",
-  "SPARCL1",
-  "FBXO2",
-  "COL11A1",
-  "COL9A2"
-)
-```
-
-```{r, fig.width=15, fig.height=15}
-VlnPlot(combined, hc_stei, idents = c("20", "13"))
-```
-
-
-
-```{r, fig.width=15, fig.height=15}
-VlnPlot(combined, oep_stei, idents = c("20", "13"))
-```
-
