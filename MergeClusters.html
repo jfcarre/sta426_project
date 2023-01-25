@@ -534,16 +534,16 @@ To use Python UMAP via reticulate, set umap.method to 'umap-learn' and metric to
 This message will be shown once per session</code></pre>
 </div>
 <div class="cell-output cell-output-stderr">
-<pre><code>18:06:37 UMAP embedding parameters a = 0.9922 b = 1.112</code></pre>
+<pre><code>18:20:56 UMAP embedding parameters a = 0.9922 b = 1.112</code></pre>
 </div>
 <div class="cell-output cell-output-stderr">
-<pre><code>18:06:37 Read 741 rows and found 10 numeric columns</code></pre>
+<pre><code>18:20:56 Read 741 rows and found 10 numeric columns</code></pre>
 </div>
 <div class="cell-output cell-output-stderr">
-<pre><code>18:06:37 Using Annoy for neighbor search, n_neighbors = 30</code></pre>
+<pre><code>18:20:56 Using Annoy for neighbor search, n_neighbors = 30</code></pre>
 </div>
 <div class="cell-output cell-output-stderr">
-<pre><code>18:06:37 Building Annoy index with metric = cosine, n_trees = 50</code></pre>
+<pre><code>18:20:56 Building Annoy index with metric = cosine, n_trees = 50</code></pre>
 </div>
 <div class="cell-output cell-output-stderr">
 <pre><code>0%   10   20   30   40   50   60   70   80   90   100%</code></pre>
@@ -553,13 +553,13 @@ This message will be shown once per session</code></pre>
 </div>
 <div class="cell-output cell-output-stderr">
 <pre><code>**************************************************|
-18:06:37 Writing NN index file to temp file /tmp/RtmpEFVFSX/file35557de08d30
-18:06:37 Searching Annoy index using 1 thread, search_k = 3000
-18:06:38 Annoy recall = 100%
-18:06:40 Commencing smooth kNN distance calibration using 1 thread with target n_neighbors = 30
-18:06:43 Initializing from normalized Laplacian + noise (using irlba)
-18:06:43 Commencing optimization for 500 epochs, with 25190 positive edges
-18:06:45 Optimization finished</code></pre>
+18:20:56 Writing NN index file to temp file /tmp/Rtmp7bfa5H/file3efa6722bf72
+18:20:56 Searching Annoy index using 1 thread, search_k = 3000
+18:20:57 Annoy recall = 100%
+18:20:58 Commencing smooth kNN distance calibration using 1 thread with target n_neighbors = 30
+18:21:02 Initializing from normalized Laplacian + noise (using irlba)
+18:21:02 Commencing optimization for 500 epochs, with 25190 positive edges
+18:21:04 Optimization finished</code></pre>
 </div>
 </div>
 <div class="cell">
@@ -1221,7 +1221,7 @@ The following requested variables were not found: SCL26A6</code></pre>
 </div>
 <p>Cluster 18 &amp; 14 are likely to be HC cluster</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb92"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb92-1"><a href="#cb92-1" aria-hidden="true" tabindex="-1"></a>cells.use <span class="ot">&lt;-</span> <span class="fu">WhichCells</span>(combined, <span class="at">idents =</span> <span class="fu">c</span>(<span class="st">'18'</span>, <span class="st">'14'</span>))</span>
+<div class="sourceCode cell-code" id="cb92"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb92-1"><a href="#cb92-1" aria-hidden="true" tabindex="-1"></a>cells.use <span class="ot">&lt;-</span> <span class="fu">WhichCells</span>(combined, <span class="at">idents =</span> <span class="fu">c</span>(<span class="st">'16'</span>, <span class="st">'11'</span>))</span>
 <span id="cb92-2"><a href="#cb92-2" aria-hidden="true" tabindex="-1"></a><span class="fu">DimPlot</span>(combined, <span class="at">reduction =</span> <span class="st">"umap"</span>, <span class="at">group.by =</span> <span class="st">"ident"</span>, <span class="at">cells.highlight =</span> cells.use, <span class="at">sizes.highlight =</span> <span class="fl">0.3</span>) <span class="sc">+</span> <span class="fu">NoLegend</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <p><img src="MergeClusters_files/figure-html/unnamed-chunk-48-1.png" class="img-fluid" width="672"></p>
