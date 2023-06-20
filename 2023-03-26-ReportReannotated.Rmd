@@ -1,0 +1,1100 @@
+---
+title: "2023-03-26-ReportReannotated"
+author: "Hubert Rehrauer / Jose F Carreño"
+date: "2023-03-26"
+output: 
+  html_document:
+    self_contained: true
+    includes:
+     in_header: !expr system.file("templates/fgcz_header.html", package="ezRun", lib.loc=.libPaths())
+    css: !expr system.file("templates/fgcz.css", package="ezRun", lib.loc=.libPaths())
+    code_folding: hide
+editor_options: 
+  chunk_output_type: inline
+---
+
+#  {.tabset}
+
+## Overview
+
+```{r, warning=FALSE, include=FALSE}
+library(Seurat)
+library(cowplot)
+library(ggplot2)
+library(dplyr) 
+library(ezRun)
+library(kableExtra)
+```
+
+
+### Set important paths
+
+```{r}
+dataDirs <- list(
+   day60_CD4 = list(
+     cellRanger =
+"/srv/gstore/projects/p29781/o30306_CellRangerCount_2022-12-20--11-08-02/IEOday60_CD4protocol",
+     seuratReport =
+"/srv/gstore/projects/p29781/o30306_ScSeurat_2022-12-20--22-03-42/IEOday60_CD4protocol_SCReport",
+     labeledObject = NULL
+   ), # Not used for now
+###############################################################
+   day60_ctrl = list(
+     cellRanger =
+"/srv/gstore/projects/p29781/o30306_CellRangerCount_2022-12-20--11-08-02/IEOday60_controlprotocol",
+     seuratReport =
+"/srv/gstore/projects/p29781/o30306_ScSeurat_2022-12-20--22-03-42/IEOday60_controlprotocol_SCReport",
+     labeledObject =
+"/srv/gstore/projects/p29781/additional-analyses/2022-11-28-relabel-day60-o30306/day60_ctrl"
+   ), # This is the second run of the ctrl experiment
+   day60_otic = list(
+     cellRanger =
+"/srv/gstore/projects/p29781/o29804_CellRangerCount_2022-11-04--11-20-44/day60oticdiff_Library_418886_1",
+     seuratReport =
+"/srv/gstore/projects/p29781/o29804_ScSeurat_2022-11-08--10-01-51/day60oticdiff_Library_418886_1_SCReport",
+     labeledObject =
+"/srv/gstore/projects/p29781/additional-analyses/2022-11-28-relabel-day60"
+   ), # This is the dataset contaminated with neurons
+   day60_merged = list(
+     cellRanger = NULL,
+     seuratReport = NULL,
+     labeledObject =
+"/srv/gstore/projects/p29781/additional-analyses/2023-01-27-Extended-MergeThenSelect"
+   ), # This is the merged dataset
+###############################################################
+   day30 = list(
+     cellRanger =
+"/srv/gstore/projects/p27889/o29467_CellRangerCount_2022-09-16--09-26-33/day30oticvesicle_Library_412321",
+     seuratReport =
+"/srv/gstore/projects/p27889/o29467_ScSeurat_2022-09-22--15-04-32/day30oticvesicle_Library_412321_SCReport",
+     labeledObject =
+"/srv/gstore/projects/p27889/additional-analyses/2022-10-04-relabel-day30oticvesicle"
+   ), # Not used for now
+   day08 = list(
+     cellRanger =
+"/srv/gstore/projects/p27889/o28146_CellRangerCount_2022-07-11--09-59-01/placodeday8test1",
+     seuratReport =
+"/srv/gstore/projects/p27889/o28146_ScSeurat_2022-05-19--11-14-04/placodeday8test1_SCReport",
+     labeledObject =
+"/srv/gstore/projects/p27889/additional-analyses/2022-08-19-Seurat-relabeled"
+   ) # Not used for now
+)
+
+
+resultDir <- "/home/jcarreno/sta426_project/results/2023-03-26-ReportReannotated"
+```
+
+### Genes of interest
+
+This list of genes has been obtained from "list for clustering 7.12.2022.xlsx"
+
+```{r}
+reference_genes <- list(
+  ghc = c(
+'ATOH1',
+'MYO7A',
+'MYO6',
+'PCP4',
+'ANXA4',
+'GFI1',
+'ESPN',
+'TMPRSS3',
+'BDNF',
+'CCER2',
+'GNG8',
+'POU4F3',
+'OTOF',
+'FSIP1',
+'ZBBX',
+'SKOR1',
+'DNAH5',
+'SLC26A5',
+'GATA3',
+'LMOD3',
+'FGF8',
+'INSM1',
+'DNM3'
+), # General Hair Cells: All markers
+hc = c(
+'ATOH1',
+'MYO7A',
+'MYO6',
+'PCP4',
+'ANXA4',
+'GFI1',
+'ESPN',
+'TMPRSS3',
+'BDNF',
+'CCER2',
+'GNG8',
+'POU4F3',
+'OTOF'), # Hair Cells
+vhc = c(
+'FSIP1',
+'ZBBX',
+'SKOR1',
+'DNAH5'), #Vestibular Hair Cells
+chc = c(
+ 'SLC26A5',
+'GATA3',
+'LMOD3',
+'FGF8',
+'INSM1',
+'DNM3',
+'TMPRSS3'),  #Cochlear Hair Cells
+oep = c(
+'EPCAM',
+'CDH1',
+'SOX2',
+'SIX1',
+'OC90',
+'SOX10',
+'FBXO2',
+'LMX1A',
+'PAX2',
+'PAX8',
+'DLX5',
+'GBX2',
+'JAG1',
+'TBX2',
+'COL9A2',
+'OTOA',
+'MYO5C',
+'OTOL1',
+'USH1C',
+'PCDH9') # Otic epithelium
+)
+
+extra_genes <- list(
+goi = c(
+'STRC',
+'CABP2',
+'USH2A',
+'TMC2',
+'CD164L2',
+'SYT14',
+'KCNH6',
+'PCDH15',
+'ISL1',
+'OTOG',
+'TECTAA',
+'GJB2',
+'GJB6',
+'CLDN14',
+'SPARCL1',
+'MEIS2',
+'SOX9',
+'SLC26A4',
+'OTOGL'), # Genes of interest (included on 13/02/2023)
+sup7 = c(
+'CDH1',
+'SOX2',
+'SIX1',
+'OC90',
+'SOX10',
+'FBXO2',
+'LMX1A',
+'GATA3',
+'MAFB',
+'NEUROD1',
+'TNTKR3',
+'PRPH',
+'NTRK3',
+'STMN2',
+'DCX',
+'TUBB3',
+'OTX1',
+'ZIC1',
+'ZIC2',
+'PAX6',
+'PAX3',
+'OTX2',
+'TTr',
+'CLIC6',
+'HTRC2',
+'PLTP',
+'CLDN3',
+'TFAP2A',
+'KRT8',
+'TP63',
+'KRT19',
+'KRT5',
+'CXCL14',
+'DSP',
+'KRT18',
+'COL17A1',
+'TYR',
+'TYRP1',
+'ECT',
+'EDNRB',
+'POSTN',
+'PPRRX1',
+'TWIST1',
+'VIM',
+'PDGFRA',
+'TWIST2',
+'TTN',
+'PAX7',
+'ACTC1',
+'TNNTI',
+'TNNII'),
+sup5 = c(
+  'OC90',
+  'SOX2',
+  'JAG1',
+  'OTOL1',
+  'OTOA',
+  'USH1C',
+  'GBX2',
+  'TBX2',
+  'ISL1',
+  'EYA2',
+  'FGF8',
+  'GATA3',
+  'TUBB3',
+  'PRPH',
+  'NTRK3',
+  'NEUROD4',
+  'NGFR',
+  'NEUROG1',
+  'NEUROD1',
+  'GADD45G',
+  'HES6',
+  'INSM1',
+  'EPHAS',
+  'TLX3',
+  'SALL3',
+  'MYT1',
+  'SHOX2',
+  'NEUROG2',
+  'PHOX2B',
+  'PHOX2A'
+), 
+sup8 = c(
+  'ATOH1',
+  'CCER2',
+  'GFI1',
+  'MYO7A',
+  'POU4F3',
+  'CDH1',
+  'SOX2',
+  'SIX1',
+  'OC90',
+  'SOX10',
+  'FBXO2',
+  'LMX1A',
+  'GATA3',
+  'MAFB',
+  'NEUROD1',
+  'TNTKR3',
+  'PRPH',
+  'NTRK3',
+  'STMN2',
+  'DCX',
+  'TUBB3',
+  'OTX1',
+  'ZIC1',
+  'ZIC2',
+  'PAX6',
+  'PAX3',
+  'OTX2',
+  'TFAP2A',
+  'KRT8',
+  'TP63',
+  'KRT19',
+  'KRT5',
+  'CXCL14',
+  'DSP',
+  'KRT18',
+  'COL17A1'
+  ),
+fig6 = c(
+  'ATOH1',
+'MYO15A',
+'USH2A',
+'CIB2',
+'STRC',
+'PCDH15',
+'CDH23',
+'INSM1',
+'GATA3',
+'PTPRQ',
+'GRXCR1',
+'CD164L2',
+'SYT14',
+'ABCA5',
+'USH1C',
+'SPARCL1',
+'CLDN14',
+'COL9A2',
+'TECTA',
+'MEIS2',
+'ISL1'
+),
+fig7 = c(
+  'SOX2',
+  'MYO7A',
+  'POU4F3',
+  'ESPN',
+  'SLC26A5',
+  'SOX9',
+  'SOX10',
+  'FBXO2',
+  'NGFR'
+)
+)
+```
+
+### Define colors
+
+```{r}
+seuratPal <- scales::hue_pal()(14)
+#scales::show_col(seuratPal)
+ctColors <- c(
+  "EP"=seuratPal[2],
+  "NE"=seuratPal[9],
+  "MES"=seuratPal[12],
+  "NEURONS"="steelblue",
+  "OEP"=seuratPal[4],
+  "MUSCLE"="gray40",
+  "NE-like"=seuratPal[8],
+  "ChP"=seuratPal[11],
+  "MEL"="gray60",
+  "Chondro"="gray80",
+  "HC" = "red")
+ezShowCol <- function (colours, colorLabels=names(colours), borders = NULL, cex_label = 1, 
+          ncol = NULL) 
+{
+  n <- length(colours)
+  ncol <- ncol %||% ceiling(sqrt(length(colours)))
+  nrow <- ceiling(n/ncol)
+  colours <- c(colours, rep(NA, nrow * ncol - length(colours)))
+  colours <- matrix(colours, ncol = ncol, byrow = FALSE)
+  old <- par(pty = "s", mar = c(0, 0, 0, 0))
+  on.exit(par(old))
+  size <- max(dim(colours))
+  plot(c(0, size), c(0, -size), type = "n", xlab = "", ylab = "", 
+       axes = FALSE)
+  rect(col(colours) - 1, -row(colours) + 1, col(colours), 
+       -row(colours), col = colours, border = borders)
+  if (!is.null(colorLabels)) {
+    hcl <- farver::decode_colour(colours, "rgb", "hcl")
+    label_col <- ifelse(hcl[, "l"] > 50, "black", "white")
+    text(col(colours)[1:length(colorLabels)] - 0.5, -row(colours)[1:length(colorLabels)] + 0.5, colorLabels, 
+         cex = cex_label, col = label_col)
+  }
+}
+
+ezShowCol(ctColors, colorLabels=paste0(names(ctColors), "\n", ctColors))
+```
+
+Load the data from the server and identify the source of each dataset
+
+```{r}
+combined <- readRDS(file = paste(dataDirs$day60_merged$labeledObject, "/scData_combined.rds", sep=""))
+```
+
+
+## Merged Dataset (Reannotation)
+
+### Original Merged Dataset
+
+This is the ORIGINAL MERGED dataset
+
+```{r}
+DimPlot(combined, label = TRUE, cols=ctColors)
+```
+
+```{r}
+DimPlot(combined, group.by = "Condition")
+```
+
+```{r, fig.width=12, fig.height=5}
+DimPlot(combined, split.by = "Condition", cols=ctColors)
+```
+
+### Reclustering & Reannotation
+
+```{r}
+ElbowPlot(combined)
+```
+
+```{r}
+DefaultAssay(combined) <- "integrated" 
+combined <- FindNeighbors(combined, dims = 1:20)
+combined_reannotated <- FindClusters(combined, resolution=0.8)
+DimPlot(combined_reannotated, reduction = "umap")
+```
+
+```{r}
+DimPlot(combined_reannotated, reduction = "umap", label = TRUE)
+```
+
+
+Cluster size: 
+
+
+```{r, fig.height=5}
+cellCountperCluster <- data.frame(id = Idents(combined_reannotated))
+barplot = ggplot(data=cellCountperCluster, aes(x=id)) + 
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust=-1) +
+  theme_minimal()
+barplot + labs(x="Cluster", y = "Cell count")
+```
+
+```{r}
+Idents(combined_reannotated) <- as.character(combined_reannotated$integrated_snn_res.0.8)
+cells.use <- WhichCells(combined_reannotated, idents = c('11'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'OEP')
+combined_reannotated$newAnnotation <- Idents(combined_reannotated)
+
+cells.use <- WhichCells(combined_reannotated, idents = c('1', '4', '0', '2', '3', '6'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'EP')
+
+cells.use <- WhichCells(combined_reannotated, idents = c('9', '7', '16', '12'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'MES')
+
+cells.use <- WhichCells(combined_reannotated, idents = c('5', '8'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'NE')
+
+cells.use <- WhichCells(combined_reannotated, idents = c('10'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'NEURONS')
+
+combined_reannotated$newAnnotation <- Idents(combined_reannotated)
+```
+
+
+```{r, fig.height=5, fig.width=7}
+DimPlot(combined_reannotated, reduction = "umap", label = TRUE, cols=ctColors)
+```
+
+```{r, fig.height=5, fig.width=7}
+DimPlot(combined_reannotated, reduction = "umap", cols=ctColors)
+```
+
+
+## Identify Hair Cell cluster
+
+```{r}
+DefaultAssay(combined_reannotated) <- "RNA"
+combined <- ScaleData(combined_reannotated, verbose = FALSE, features=rownames(combined_reannotated))
+```
+
+We compute the actual score: 
+
+```{r}
+combined_reannotated <- AddModuleScore(combined_reannotated, features=reference_genes, name="module")
+```
+
+### Plot scores
+
+```{r, fig.width=20, fig.height=15}
+featNames <- paste0("module", 1:length(reference_genes))
+p1 <- DimPlot(combined_reannotated, group.by = "newAnnotation", cols=ctColors)
+p2 <- FeaturePlot(combined_reannotated, featNames)
+p3 <- VlnPlot(combined_reannotated, featNames, group.by = "newAnnotation", ncol = 5, add.noise=FALSE, cols=ctColors)
+
+upper_row <- plot_grid(p1, p2, ncol = 2)
+
+plot_grid(upper_row, p3, ncol = 1)
+```
+
+```{r}
+for (i in 1:length(reference_genes)){
+  if(i==2){
+    print(VlnPlot(combined_reannotated, featNames[i], pt.size=1, group.by = "newAnnotation", cols=ctColors, add.noise = FALSE) + geom_hline(yintercept=0.30) + ggtitle(names(reference_genes)[i]))
+  }
+  else if (i==5) {
+    print(VlnPlot(combined_reannotated, featNames[i], pt.size=1, group.by = "newAnnotation", cols=ctColors, add.noise = FALSE) + geom_hline(yintercept=0.1) + ggtitle(names(reference_genes)[i]))
+  } 
+  else {
+     print(VlnPlot(combined_reannotated, featNames[i], pt.size=1, group.by = "newAnnotation", cols=ctColors, add.noise = FALSE) + ggtitle(names(reference_genes)[i]))
+  }
+}
+```
+
+
+Use only the cells above the threshold in module 2 and the otic epithelium cells above threshold in module 5:
+
+
+```{r}
+useCell <- (combined_reannotated$newAnnotation == "OEP" & combined$module5>0.1) | combined$module2 > 0.30 
+combined_sel <- combined_reannotated[ , useCell]
+```
+
+### Reclustering of the selected cells
+
+```{r}
+combined_sel <- FindVariableFeatures(combined_sel, nfeatures = 2000)
+combined_sel <- RunPCA(combined_sel, npcs = 10, verbose = FALSE)
+ElbowPlot(combined_sel)
+```
+
+```{r}
+combined_sel <- RunUMAP(combined_sel, reduction = "pca", dims = 1:5)
+```
+
+```{r}
+combined_sel <- RunTSNE(combined_sel, reduction = "pca", dims = 1:5)
+combined_sel <- FindNeighbors(combined_sel, reduction = "pca", dims = 1:5, k.param = 7)
+```
+
+```{r}
+combined_sel <- FindClusters(combined_sel, resolution = 0.3)
+```
+
+```{r}
+DimPlot(combined_sel, label = TRUE)
+```
+
+```{r}
+DimPlot(combined_sel, group.by = "Condition")
+```
+
+```{r}
+DimPlot(combined_sel, group.by = "newAnnotation", cols=ctColors)
+```
+
+### Module Score for the selected cells
+
+Compute again the score for each set of genes established in the Overview section:
+
+```{r, fig.width=10, fig.height=10}
+featNames <- paste0("module", 1:length(reference_genes))
+FeaturePlot(combined_sel, featNames, order= TRUE)
+```
+
+Plot the set of genes stablished in the Overview and that are present in the integrated object:
+
+```{r, fig.width=12, fig.height=14}
+rgSet <- lapply(reference_genes, intersect, rownames(combined_sel))
+DoHeatmap(combined_sel, unlist(rgSet))
+```
+
+
+Number of cells per cluster:
+
+```{r}
+cellCountperCluster <- data.frame(id = Idents(combined_sel))
+barplot = ggplot(data=cellCountperCluster, aes(x=id)) + 
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust=-1) +
+  theme_minimal()
+barplot + labs(x="Cluster", y = "Cell count")
+```
+
+
+Cells in cluster 5 are likely to be HC:
+
+```{r}
+Idents(combined_sel) <- combined_sel$seurat_clusters %>% recode("5"="HC")
+```
+
+
+HIGHLIGHT VERSION 1: ALL GREEN VS HC IN RED
+
+```{r}
+cells.use <- WhichCells(combined_sel, idents = c('HC'))
+DimPlot(combined_sel, reduction = "umap", cells.highlight = cells.use, sizes.highlight = 0.5, cols=seuratPal[4]) + NoLegend()
+```
+
+
+
+HIGHLIGHT VERSION 2: ALL CELLS THEIR RESPECTIVE COLORS & HC RED
+
+
+```{r}
+Idents(combined_sel) <- combined_sel$newAnnotation
+combined_sel <- SetIdent(combined_sel, cells = cells.use, value = 'HC')
+combined_sel$newAnnotation <- Idents(combined_sel)
+```
+
+
+```{r}
+DimPlot(combined_sel, cols=ctColors)
+```
+
+
+
+
+HIGHLIGHT VERSION 3: ALL GRAY VS HC IN RED
+
+
+```{r}
+DimPlot(combined_sel, reduction = "umap", cells.highlight = cells.use, sizes.highlight = 0.5) + NoLegend()
+```
+
+
+## Mapping HC to original Merged Dataset
+
+```{r, fig.width=12, fig.height=4}
+p1 <- DimPlot(combined_reannotated, cols=ctColors)
+combined_reclustered <- SetIdent(combined_reannotated, cells = cells.use, value = 'HC')
+p2 <- DimPlot(combined_reclustered, cols=ctColors)
+
+plot_grid(p1, p2, ncol=2)
+```
+
+```{r}
+combined_reclustered$labels_hc_neurons_ne_mes_ep_oep <- Idents(combined_reclustered)
+```
+
+
+## Some extra UMAPS with the new labels
+
+### UMAP without unwanted labels
+
+```{r}
+newColors <- c(
+  "OEP"=seuratPal[4],
+  "EP"=seuratPal[2],
+  "MES"=seuratPal[12],
+  "NE"=seuratPal[9],
+  "NEURONS"="steelblue",
+  "HC" = "red"
+  )
+
+ezShowCol(newColors, colorLabels=paste0(names(newColors), "\n", newColors))
+```
+
+```{r}
+DimPlot(combined_reclustered, cols=newColors)
+```
+
+```{r}
+DimPlot(combined_reclustered, cols=newColors, label=TRUE)
+```
+
+### UMAP with granular colors & no unwanted clusters
+
+```{r}
+Idents(combined_reannotated) <- as.character(combined_reannotated$integrated_snn_res.0.8)
+cells.use <- WhichCells(combined_reannotated, idents = c('11'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'OEP')
+
+cells.use <- WhichCells(combined_reannotated, idents = c('1'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'EP1')
+cells.use <- WhichCells(combined_reannotated, idents = c('4'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'EP2')
+cells.use <- WhichCells(combined_reannotated, idents = c('0'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'EP3')
+cells.use <- WhichCells(combined_reannotated, idents = c('2'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'EP4')
+cells.use <- WhichCells(combined_reannotated, idents = c('3'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'EP5')
+cells.use <- WhichCells(combined_reannotated, idents = c('6'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'EP6')
+
+cells.use <- WhichCells(combined_reannotated, idents = c('9'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'MES1')
+cells.use <- WhichCells(combined_reannotated, idents = c('7'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'MES2')
+cells.use <- WhichCells(combined_reannotated, idents = c('16'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'MES3')
+cells.use <- WhichCells(combined_reannotated, idents = c('12'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'MES4')
+
+cells.use <- WhichCells(combined_reannotated, idents = c('5'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'NE1')
+cells.use <- WhichCells(combined_reannotated, idents = c('8'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'NE2')
+
+cells.use <- WhichCells(combined_reannotated, idents = c('10'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'NEURONS')
+
+cells.use <- WhichCells(combined_sel, idents = c('HC'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'HC')
+
+
+
+Idents(combined_reannotated) <- Idents(combined_reannotated)
+```
+
+```{r}
+newColors <- c(
+  "OEP"=seuratPal[4],
+  "EP1"=rgb(223,138,35, maxColorValue = 255),
+  "EP2"=rgb(230,158,76, maxColorValue = 255),
+  "EP3"=rgb(238,186,136, maxColorValue = 255),
+  "EP4"=rgb(248,182,170, maxColorValue = 255),
+  "EP5"=rgb(243,143,131, maxColorValue = 255),
+  "EP6"=rgb(245,114,112, maxColorValue = 255),
+  "MES1"=rgb(231,204,221, maxColorValue = 255),
+  "MES2"=rgb(219,160,201, maxColorValue = 255),
+  "MES3"=rgb(238,143,183, maxColorValue = 255),
+  "MES4"=rgb(193,167,194, maxColorValue = 255),
+  "NE1"=rgb(160,188,225, maxColorValue = 255),
+  "NE2"=rgb(66,141,204, maxColorValue = 255),
+  "NEURONS"="steelblue",
+  "HC" = "red"
+  )
+
+ezShowCol(newColors, colorLabels=paste0(names(newColors), "\n", newColors))
+```
+
+
+```{r}
+DimPlot(combined_reannotated, cols=newColors)
+```
+
+```{r}
+DimPlot(combined_reannotated, cols=newColors, label=TRUE)
+```
+
+
+### UMAP with granular colors & one extra cluster as grey
+
+```{r}
+newColors <- c(
+  "OEP"=seuratPal[4],
+  "EP1"=rgb(223,138,35, maxColorValue = 255),
+  "EP2"=rgb(230,158,76, maxColorValue = 255),
+  "EP3"=rgb(238,186,136, maxColorValue = 255),
+  "EP4"=rgb(248,182,170, maxColorValue = 255),
+  "EP5"=rgb(243,143,131, maxColorValue = 255),
+  "EP6"=rgb(245,114,112, maxColorValue = 255),
+  "MES1"=rgb(231,204,221, maxColorValue = 255),
+  "MES2"=rgb(219,160,201, maxColorValue = 255),
+  "MES3"=rgb(238,143,183, maxColorValue = 255),
+  "MES4"=rgb(193,167,194, maxColorValue = 255),
+  "NE1"=rgb(160,188,225, maxColorValue = 255),
+  "NE2"=rgb(66,141,204, maxColorValue = 255),
+  "NEURONS"="steelblue",
+  "HC" = "red",
+  'others' = 'grey'
+  )
+
+ezShowCol(newColors, colorLabels=paste0(names(newColors), "\n", newColors))
+```
+
+```{r}
+cells.use <- WhichCells(combined_reannotated, idents = c('13', '14', '15', '17', '18', '19'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'others')
+```
+
+
+```{r}
+DimPlot(combined_reannotated, cols=newColors)
+```
+
+```{r}
+DimPlot(combined_reannotated, cols=newColors, label=TRUE)
+```
+
+
+### UMAP with granular colors & granular clusters as grey (original name)
+
+```{r}
+Idents(combined_reannotated) <- as.character(combined_reannotated$integrated_snn_res.0.8)
+cells.use <- WhichCells(combined_reannotated, idents = c('11'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'OEP')
+
+cells.use <- WhichCells(combined_reannotated, idents = c('1'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'EP1')
+cells.use <- WhichCells(combined_reannotated, idents = c('4'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'EP2')
+cells.use <- WhichCells(combined_reannotated, idents = c('0'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'EP3')
+cells.use <- WhichCells(combined_reannotated, idents = c('2'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'EP4')
+cells.use <- WhichCells(combined_reannotated, idents = c('3'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'EP5')
+cells.use <- WhichCells(combined_reannotated, idents = c('6'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'EP6')
+
+cells.use <- WhichCells(combined_reannotated, idents = c('9'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'MES1')
+cells.use <- WhichCells(combined_reannotated, idents = c('7'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'MES2')
+cells.use <- WhichCells(combined_reannotated, idents = c('16'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'MES3')
+cells.use <- WhichCells(combined_reannotated, idents = c('12'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'MES4')
+
+cells.use <- WhichCells(combined_reannotated, idents = c('5'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'NE1')
+cells.use <- WhichCells(combined_reannotated, idents = c('8'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'NE2')
+
+cells.use <- WhichCells(combined_reannotated, idents = c('10'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'NEURONS')
+
+cells.use <- WhichCells(combined_sel, idents = c('HC'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'HC')
+
+
+
+Idents(combined_reannotated) <- Idents(combined_reannotated)
+```
+
+
+```{r}
+newColors <- c(
+  "OEP"=seuratPal[4],
+  "EP1"=rgb(223,138,35, maxColorValue = 255),
+  "EP2"=rgb(230,158,76, maxColorValue = 255),
+  "EP3"=rgb(238,186,136, maxColorValue = 255),
+  "EP4"=rgb(248,182,170, maxColorValue = 255),
+  "EP5"=rgb(243,143,131, maxColorValue = 255),
+  "EP6"=rgb(245,114,112, maxColorValue = 255),
+  "MES1"=rgb(231,204,221, maxColorValue = 255),
+  "MES2"=rgb(219,160,201, maxColorValue = 255),
+  "MES3"=rgb(238,143,183, maxColorValue = 255),
+  "MES4"=rgb(193,167,194, maxColorValue = 255),
+  "NE1"=rgb(160,188,225, maxColorValue = 255),
+  "NE2"=rgb(66,141,204, maxColorValue = 255),
+  "NEURONS"="steelblue",
+  "HC" = "red",
+  '13' = rgb(204,204,204, maxColorValue = 255),
+  '14' = rgb(236,236,236, maxColorValue = 255),
+  '15' = rgb(236,236,236, maxColorValue = 255),
+  '17' = rgb(102,102,102, maxColorValue = 255),
+  '18' = rgb(152,152,152, maxColorValue = 255),
+  '19' = rgb(226,226,226, maxColorValue = 255)
+  )
+
+ezShowCol(newColors, colorLabels=paste0(names(newColors), "\n", newColors))
+```
+
+```{r}
+DimPlot(combined_reannotated, cols=newColors)
+```
+
+```{r}
+DimPlot(combined_reannotated, cols=newColors, label=TRUE)
+```
+
+
+### UMAP with granular colors & granular clusters as grey (new name)
+
+
+```{r}
+Idents(combined_reannotated) <- as.character(combined_reannotated$integrated_snn_res.0.8)
+cells.use <- WhichCells(combined_reannotated, idents = c('11'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'OEP')
+
+cells.use <- WhichCells(combined_reannotated, idents = c('1'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'EP1')
+cells.use <- WhichCells(combined_reannotated, idents = c('4'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'EP2')
+cells.use <- WhichCells(combined_reannotated, idents = c('0'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'EP3')
+cells.use <- WhichCells(combined_reannotated, idents = c('2'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'EP4')
+cells.use <- WhichCells(combined_reannotated, idents = c('3'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'EP5')
+cells.use <- WhichCells(combined_reannotated, idents = c('6'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'EP6')
+
+cells.use <- WhichCells(combined_reannotated, idents = c('9'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'MES1')
+cells.use <- WhichCells(combined_reannotated, idents = c('7'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'MES2')
+cells.use <- WhichCells(combined_reannotated, idents = c('16'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'MES3')
+cells.use <- WhichCells(combined_reannotated, idents = c('12'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'MES4')
+
+cells.use <- WhichCells(combined_reannotated, idents = c('5'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'NE1')
+cells.use <- WhichCells(combined_reannotated, idents = c('8'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'NE2')
+
+cells.use <- WhichCells(combined_reannotated, idents = c('10'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'NEURONS')
+
+cells.use <- WhichCells(combined_sel, idents = c('HC'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'HC')
+
+cells.use <- WhichCells(combined_reannotated, idents = c('13'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'others1')
+cells.use <- WhichCells(combined_reannotated, idents = c('14'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'others2')
+cells.use <- WhichCells(combined_reannotated, idents = c('15'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'others3')
+cells.use <- WhichCells(combined_reannotated, idents = c('17'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'others4')
+cells.use <- WhichCells(combined_reannotated, idents = c('18'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'others5')
+cells.use <- WhichCells(combined_reannotated, idents = c('19'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'others6')
+
+
+
+Idents(combined_reannotated) <- Idents(combined_reannotated)
+```
+
+
+```{r}
+newColors <- c(
+  "OEP"=seuratPal[4],
+  "EP1"=rgb(223,138,35, maxColorValue = 255),
+  "EP2"=rgb(230,158,76, maxColorValue = 255),
+  "EP3"=rgb(238,186,136, maxColorValue = 255),
+  "EP4"=rgb(248,182,170, maxColorValue = 255),
+  "EP5"=rgb(243,143,131, maxColorValue = 255),
+  "EP6"=rgb(245,114,112, maxColorValue = 255),
+  "MES1"=rgb(231,204,221, maxColorValue = 255),
+  "MES2"=rgb(219,160,201, maxColorValue = 255),
+  "MES3"=rgb(238,143,183, maxColorValue = 255),
+  "MES4"=rgb(193,167,194, maxColorValue = 255),
+  "NE1"=rgb(160,188,225, maxColorValue = 255),
+  "NE2"=rgb(66,141,204, maxColorValue = 255),
+  "NEURONS"="steelblue",
+  "HC" = "red",
+  'others1' = rgb(204,204,204, maxColorValue = 255),
+  'others2' = rgb(236,236,236, maxColorValue = 255),
+  'others3' = rgb(236,236,236, maxColorValue = 255),
+  'others4' = rgb(102,102,102, maxColorValue = 255),
+  'others5' = rgb(152,152,152, maxColorValue = 255),
+  'others6' = rgb(226,226,226, maxColorValue = 255)
+  )
+
+ezShowCol(newColors, colorLabels=paste0(names(newColors), "\n", newColors))
+```
+
+```{r}
+DimPlot(combined_reannotated, cols=newColors)
+```
+
+```{r}
+DimPlot(combined_reannotated, cols=newColors, label=TRUE)
+```
+
+## Dotplot for Supplementary 8
+
+```{r}
+Idents(combined_reannotated) <- as.character(combined_reannotated$integrated_snn_res.0.8)
+cells.use <- WhichCells(combined_reannotated, idents = c('11'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'OEP')
+
+cells.use <- WhichCells(combined_reannotated, idents = c('1', '4','0','2','3','6'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'EP')
+
+cells.use <- WhichCells(combined_reannotated, idents = c('9','7','16','12'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'MES')
+
+cells.use <- WhichCells(combined_reannotated, idents = c('5','8'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'NE')
+
+cells.use <- WhichCells(combined_reannotated, idents = c('10'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'NEURONS')
+
+cells.use <- WhichCells(combined_reannotated, idents = c('13', '14', '15', '17', '18', '19'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'others')
+
+cells.use <- WhichCells(combined_sel, idents = c('HC'))
+combined_reannotated <- SetIdent(combined_reannotated, cells = cells.use, value = 'HC')
+
+
+Idents(combined_reannotated) <- Idents(combined_reannotated)
+```
+
+
+
+```{r, fig.height=8, fig.width=8}
+DotPlot(combined_reannotated, features=extra_genes$sup8, idents = c('HC','OEP', 'EP', 'NE', 'NEURONS', 'MES')) + coord_flip()
+```
+
+
+## Dotplot for DEG (HC vs OEP, EP, NE, NEU, MES)
+
+```{r}
+markers <- FindMarkers(object=combined_reannotated, ident.1 = 'HC', ident.2 = c('NEURONS', 'NE', 'MES', 'EP', 'OEP'), test.use = "wilcox", only.pos=TRUE, assay="RNA")
+## Significant markers
+markers <- ezFrame(gene=rownames(markers), markers)
+markers <- markers[ ,c("gene","pct.1", "pct.2", "avg_log2FC","p_val_adj")]
+#cm <- cm[cm$p_val_adj < 0.05, ]
+markers$diff_pct = abs(markers$pct.1-markers$pct.2)
+markers <- markers[order(markers$diff_pct, decreasing = TRUE),] ## why would we round here?? %>% mutate_if(is.numeric, round, digits=3)
+writexl::write_xlsx(markers, path=file.path(resultDir, "hcMarkers.xlsx"))
+```
+
+```{r}
+newColors <- c(
+  "OEP"=seuratPal[4],
+  "EP"=seuratPal[2],
+  "NE"=seuratPal[9],
+  "MES"=seuratPal[12],
+  "NEURONS"="steelblue",
+  "HC" = "red"
+  )
+DimPlot(combined_reannotated, cols = newColors)
+```
+
+
+```{r , fig.width=12, fig.height=12}
+levels(combined_reannotated) <- c("HC", "OEP", "NEURONS", "NE", "MES", "EP", "others")
+
+cells.use <- WhichCells(combined_reannotated, idents = c('HC', 'OEP', 'NEURONS', 'NE', 'MES', 'EP'))
+genesToPlot <- c(rownames(markers[order(-markers$avg_log2FC), ]) %>% head(30),
+                 rownames(markers[order(markers$avg_log2FC), ]) %>% head(30)) %>% unique()
+
+
+DoHeatmap(combined_reannotated, features=unique(genesToPlot), cells=cells.use)
+DotPlot(combined_reannotated, features=genesToPlot, idents = c('HC', 'OEP', 'NEURONS', 'NE', 'MES', 'EP')) + coord_flip()
+```
+
+
+
+## Dotplot for DEG (all vs all)
+
+```{r}
+markers <- FindAllMarkers(object=combined_reannotated, test.use = "wilcox", only.pos=TRUE, assay="RNA")
+## Significant markers
+markers <- markers[ ,c("gene","cluster","pct.1", "pct.2", "avg_log2FC","p_val_adj")]
+#cm <- cm[cm$p_val_adj < 0.05, ]
+markers$cluster <- as.factor(markers$cluster)
+markers$diff_pct = abs(markers$pct.1-markers$pct.2)
+markers <- markers[order(markers$diff_pct, decreasing = TRUE),] ## why would we round here?? %>% mutate_if(is.numeric, round, digits=3)
+writexl::write_xlsx(markers, path=file.path(resultDir, "allMarkers.xlsx"))
+```
+
+
+```{r , fig.width=15, fig.height=12}
+genesToPlot <- c(rownames(markers[order(-markers$avg_log2FC), ]) %>% head(30),
+                 rownames(markers[order(markers$avg_log2FC), ]) %>% head(30)) %>% unique()
+
+
+DoHeatmap(combined_reannotated, features=unique(genesToPlot))
+DotPlot(combined_reannotated, features=genesToPlot) + coord_flip()
+```
+
+
+## Violin plots (Fig 6 & 7)
+
+```{r}
+newColors <- c(
+  "OEP"=seuratPal[4],
+  "EP"=seuratPal[2],
+  "MES"=seuratPal[12],
+  "NE"=seuratPal[9],
+  "NEURONS"="steelblue",
+  "HC" = "red"
+  )
+
+ezShowCol(newColors, colorLabels=paste0(names(newColors), "\n", newColors))
+```
+
+
+```{r, fig.width=3, fig.height=3}
+for (featName in extra_genes$fig6){
+  print(VlnPlot(combined_sel, featName, idents = c('HC', 'OEP') , group.by = "newAnnotation", add.noise=FALSE, cols=newColors))
+}
+```
+
+
+```{r, fig.width=3, fig.height=3}
+for (featName in extra_genes$fig7){
+  try(print(VlnPlot(combined_sel, featName, idents = c('HC', 'OEP') , group.by = "newAnnotation", add.noise=FALSE, cols=newColors)))
+}
+```
+
+## Save object
+
+```{r}
+saveRDS(combined_reclustered, file = file.path(resultDir, "scData_combined_reclustered.rds"))
+saveRDS(combined_sel, file = file.path(resultDir, "scData_combined_sel.rds"))
+```
+
