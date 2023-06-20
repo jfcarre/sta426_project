@@ -1,0 +1,1742 @@
+---
+title: "Combine day60_otic + day60_ctrl"
+author: "Hubert Rehrauer / Jose F Carreño"
+output: 
+  html_document:
+    self_contained: true
+    includes:
+     in_header: !expr system.file("templates/fgcz_header.html", package="ezRun", lib.loc=.libPaths())
+    css: !expr system.file("templates/fgcz.css", package="ezRun", lib.loc=.libPaths())
+    code_folding: hide
+editor_options: 
+  chunk_output_type: inline
+---
+
+#  {.tabset}
+
+## Overview
+
+```{r, warning=FALSE, include=FALSE}
+### Load necessary libraries
+
+library(Seurat)
+library(cowplot)
+library(ggplot2)
+library(dplyr) 
+library(ezRun)
+```
+
+The interactive explorer ist at <https://fgcz-shiny.uzh.ch/fgcz_iSEE/?data=p29781/additional-analyses/2023-01-21-MergeSamples/sce_h5>
+
+This report is intented to address the different options proposed of merging, filtering and clustering the two experiments EXP45 & EXP46 to obtain a pure cluster of Hair Cells.
+
+Important references are:
+  *   Dataset integration algorithm: [https://doi.org/10.1016/j.cell.2019.05.031](https://doi.org/10.1016/j.cell.2019.05.031)
+  *   Calculate module score reference: [https://doi.org/10.1126%2Fscience.aad0501](https://doi.org/10.1126%2Fscience.aad0501)
+  *   Calculate module score tutorial: [Link](https://www.waltermuskovic.com/2021/04/15/seurat-s-addmodulescore-function/#:~:text=Calculate%20the%20average%20expression%20levels,randomly%20selected%20from%20each%20bin.) (I found this particularly helpful to understand the actual implementation of the algorithm in R)
+
+The organization of this report is as follows:
+
+*   Overview: Definition of important variables for the report
+
+*   Analysis 1: Select then merge
+
+    *   Select cells with a given gene expression pattern + OEP cells for each dataset independently
+    *   Merge both datasets
+    *   Reclustering of selected cells
+    *   Subsequent marker analysis
+        -   General Hair Cells
+        -   Hair Cells
+        -   Cochlear Hair Cells
+        -   Vestibular Hair Cells
+        -   Otic Epithelium
+
+*   Analysis 2: Merge then select
+
+    *   Merge both datasets
+    *   Select cells with a given gene expression pattern + OEP cells in the merged dataset
+    *   Reclustering of selected cells
+    *   Subsequent marker analysis
+        -   General Hair Cells
+        -   Hair Cells
+        -   Cochlear Hair Cells
+        -   Vestibular Hair Cells
+        -   Otic Epithelium
+
+*   Analysis 3: Merge then select (EPCAM+)
+
+    *   Merge both datasets
+    *   Select EPCAM+ cells
+    *   Reclustering of selected cells
+    *   Subsequent marker analysis
+        -   General Hair Cells
+        -   Hair Cells
+        -   Cochlear Hair Cells
+        -   Vestibular Hair Cells
+        -   Otic Epithelium
+
+*   Analysis 4: Merge then select (SOX2+)
+
+    *   Merge both datasets
+    *   Select SOX2+ cells
+    *   Reclustering of selected cells
+    *   Subsequent marker analysis
+        -   General Hair Cells
+        -   Hair Cells
+        -   Cochlear Hair Cells
+        -   Vestibular Hair Cells
+        -   Otic Epithelium
+
+*   Analysis 5: Merge then select (POU4F3+)
+
+    *   Merge both datasets
+    *   Select POU4F3+ cells
+    *   Reclustering of selected cells
+    *   Subsequent marker analysis
+        -   General Hair Cells
+        -   Hair Cells
+        -   Cochlear Hair Cells
+        -   Vestibular Hair Cells
+        -   Otic Epithelium
+
+### Set important paths
+
+```{r}
+dataDirs <- list(
+   day60_CD4 = list(
+     cellRanger =
+"/srv/gstore/projects/p29781/o30306_CellRangerCount_2022-12-20--11-08-02/IEOday60_CD4protocol",
+     seuratReport =
+"/srv/gstore/projects/p29781/o30306_ScSeurat_2022-12-20--22-03-42/IEOday60_CD4protocol_SCReport",
+     labeledObject = NULL
+   ), # Not used for now
+###############################################################
+   day60_ctrl = list(
+     cellRanger =
+"/srv/gstore/projects/p29781/o30306_CellRangerCount_2022-12-20--11-08-02/IEOday60_controlprotocol",
+     seuratReport =
+"/srv/gstore/projects/p29781/o30306_ScSeurat_2022-12-20--22-03-42/IEOday60_controlprotocol_SCReport",
+     labeledObject =
+"/srv/gstore/projects/p29781/additional-analyses/2022-11-28-relabel-day60-o30306/day60_ctrl"
+   ), # This is the second run of the ctrl experiment
+   day60_otic = list(
+     cellRanger =
+"/srv/gstore/projects/p29781/o29804_CellRangerCount_2022-11-04--11-20-44/day60oticdiff_Library_418886_1",
+     seuratReport =
+"/srv/gstore/projects/p29781/o29804_ScSeurat_2022-11-08--10-01-51/day60oticdiff_Library_418886_1_SCReport",
+     labeledObject =
+"/srv/gstore/projects/p29781/additional-analyses/2022-11-28-relabel-day60"
+   ), # This is the dataset contaminated with neurons
+###############################################################
+   day30 = list(
+     cellRanger =
+"/srv/gstore/projects/p27889/o29467_CellRangerCount_2022-09-16--09-26-33/day30oticvesicle_Library_412321",
+     seuratReport =
+"/srv/gstore/projects/p27889/o29467_ScSeurat_2022-09-22--15-04-32/day30oticvesicle_Library_412321_SCReport",
+     labeledObject =
+"/srv/gstore/projects/p27889/additional-analyses/2022-10-04-relabel-day30oticvesicle"
+   ), # Not used for now
+   day08 = list(
+     cellRanger =
+"/srv/gstore/projects/p27889/o28146_CellRangerCount_2022-07-11--09-59-01/placodeday8test1",
+     seuratReport =
+"/srv/gstore/projects/p27889/o28146_ScSeurat_2022-05-19--11-14-04/placodeday8test1_SCReport",
+     labeledObject =
+"/srv/gstore/projects/p27889/additional-analyses/2022-08-19-Seurat-relabeled"
+   ) # Not used for now
+)
+#dataDirs
+
+resultDir <- "/scratch/jcarreno/sta426_project/results"
+```
+
+### Genes of interest
+
+This list of genes has been obtained from "list for clustering 7.12.2022.xlsx"
+
+```{r}
+reference_genes <- list(
+  ghc = c(
+'ATOH1',
+'MYO7A',
+'MYO6',
+'PCP4',
+'ANXA4',
+'GFI1',
+'ESPN',
+'TMPRSS3',
+'BDNF',
+'CCER2',
+'GNG8',
+'POU4F3',
+'OTOF',
+'FSIP1',
+'ZBBX',
+'SKOR1',
+'DNAH5',
+'SLC26A5',
+'GATA3',
+'LMOD3',
+'FGF8',
+'INSM1',
+'DNM3'
+), # General Hair Cells: All markers
+hc = c(
+'ATOH1',
+'MYO7A',
+'MYO6',
+'PCP4',
+'ANXA4',
+'GFI1',
+'ESPN',
+'TMPRSS3',
+'BDNF',
+'CCER2',
+'GNG8',
+'POU4F3',
+'OTOF'), # Hair Cells
+vhc = c(
+'FSIP1',
+'ZBBX',
+'SKOR1',
+'DNAH5'), #Vestibular Hair Cells
+chc = c(
+ 'SLC26A5',
+'GATA3',
+'LMOD3',
+'FGF8',
+'INSM1',
+'DNM3',
+'TMPRSS3'),  #Cochlear Hair Cells
+oep = c(
+'EPCAM',
+'CDH1',
+'SOX2',
+'SIX1',
+'OC90',
+'SOX10',
+'FBXO2',
+'LMX1A',
+'PAX2',
+'PAX8',
+'DLX5',
+'GBX2',
+'JAG1',
+'TBX2',
+'COL9A2',
+'OTOA',
+'MYO5C',
+'OTOL1',
+'USH1C',
+'PCDH9')
+)
+```
+
+Load the data from the server and we identify the source of each dataset
+
+```{r}
+day60_otic <- readRDS(file = paste(dataDirs$day60_otic$labeledObject, "/scData.rds",sep = ""))
+day60_ctrl <- readRDS(file = paste(dataDirs$day60_ctrl$labeledObject, "/scData.rds",sep = ""))
+
+day60_otic$experiment <- "day60_otic"
+day60_ctrl$experiment <- "day60_ctrl"
+```
+
+## Analysis 1: Select then merge
+
+### Compute Modules Scores
+
+We compute the actual score
+
+```{r}
+day60_otic <- AddModuleScore(day60_otic, features=reference_genes, name="module")
+day60_ctrl <- AddModuleScore(day60_ctrl, features=reference_genes, name="module")
+```
+
+#### Plot scores: day60_otic
+
+```{r, fig.width=20, fig.height=20}
+featNames <- paste0("module", 1:length(reference_genes))
+p1 <- DimPlot(day60_otic, label=TRUE)
+p2 <- FeaturePlot(day60_otic, featNames)
+p3 <- VlnPlot(day60_otic, featNames, ncol=5)
+
+grid1 <- plot_grid(p1, p2, ncol = 2)
+
+plot_grid(grid1, p3, ncol = 1)
+```
+
+```{r}
+for (i in 1:length(reference_genes)){
+  print(VlnPlot(day60_otic, featNames[i], pt.size=1) + geom_hline(yintercept=0.3) + ggtitle(names(reference_genes)[i]))
+}
+```
+
+Use only the cells above the threshold and the otic epithelium cells:
+
+```{r}
+useCell <- Idents(day60_otic) == "OEP" | day60_otic$module2 > 0.3 
+day60_oticSel <- day60_otic[ , useCell]
+```
+
+#### Plot scores: day60_ctrl
+
+```{r, fig.width=18, fig.height=15}
+featNames <- paste0("module", 1:length(reference_genes))
+p1 <- DimPlot(day60_ctrl, label=TRUE)
+p2 <- FeaturePlot(day60_ctrl, featNames)
+p3 <- VlnPlot(day60_ctrl, featNames, ncol=5)
+
+grid1 <- plot_grid(p1, p2, ncol = 2)
+
+plot_grid(grid1, p3, ncol = 1)
+```
+
+```{r}
+for (i in 1:length(reference_genes)){
+  print(VlnPlot(day60_ctrl, featNames[i], pt.size=1) + geom_hline(yintercept=0.3) + ggtitle(names(reference_genes)[i]))
+}
+```
+
+Use only the cells above the threshold and the otic epithelium cells:
+
+```{r}
+useCell <- Idents(day60_ctrl) == "OEP" | day60_ctrl$module2 > 0.3 
+day60_ctrlSel <- day60_ctrl[ , useCell]
+```
+
+### Merge datasets
+
+
+```{r}
+day60_oticSel <- FindVariableFeatures(day60_oticSel, nfeatures = 2000)
+day60_ctrlSel <- FindVariableFeatures(day60_ctrlSel, nfeatures = 2000)
+```
+
+From our set of genes stablished in the Overview, check how many of these are not present in our variables genes for day60_otic experiment:
+
+```{r}
+sapply(reference_genes, function(rg){
+  rg %>% setdiff(rownames(day60_oticSel)) %>% length()
+})
+```
+
+```{r}
+anchors <- FindIntegrationAnchors(object.list = list(day60_oticSel, day60_ctrlSel), dims = 1:10)
+```
+
+Integrate the selected cells from both datasets:
+
+```{r}
+combined <- IntegrateData(anchorset = anchors, dims = 1:10)
+```
+
+From our set of genes stablished in the Overview, check how many of these ARE NOT present in the "integrated" assay:
+
+```{r}
+sapply(reference_genes, function(rg){
+  rg %>% setdiff(rownames(combined)) %>% length()
+})
+```
+
+From our set of genes stablished in the Overview, check how many of these ARE present in the "integrated" assay:
+
+```{r}
+sapply(reference_genes, function(rg){
+  rg %>% intersect(rownames(combined)) %>% length()
+})
+```
+
+#### Reclustering
+
+```{r}
+#DefaultAssay(combined) <- "RNA"
+combined <- ScaleData(combined, verbose = FALSE)
+combined <- FindVariableFeatures(combined, nfeatures = 2000)
+combined <- RunPCA(combined, npcs = 10, verbose = FALSE)
+ElbowPlot(combined)
+```
+
+```{r}
+combined <- RunUMAP(combined, reduction = "pca", dims = 1:10)
+```
+
+```{r}
+combined <- RunTSNE(combined, reduction = "pca", dims = 1:10)
+combined <- FindNeighbors(combined, reduction = "pca", dims = 1:10, k.param = 9)
+```
+
+```{r}
+combined <- FindClusters(combined, resolution = 0.5)
+```
+
+```{r}
+DimPlot(combined, label = TRUE)
+```
+
+```{r}
+DimPlot(combined, group.by = "Condition")
+```
+
+```{r}
+DimPlot(combined, group.by = "clusterLabels")
+```
+
+
+```{r}
+Idents(combined) <- combined$seurat_clusters %>% recode("11"="hc1", "12"="hc2")
+DefaultAssay(combined) <- "RNA"
+combined <- ScaleData(combined, verbose = FALSE, features=rownames(combined))
+```
+
+### Signature Analysis {.tabset}
+
+Compute again the score for each set of genes established in the Overview section:
+
+```{r, fig.width=10, fig.height=10}
+featNames <- paste0("module", 1:length(reference_genes))
+FeaturePlot(combined, featNames, order= TRUE)
+```
+
+Plot the set of genes stablished in the Overview and that are present in the integrated object:
+
+```{r, fig.width=10, fig.height=10}
+rgSet <- lapply(reference_genes, intersect, rownames(combined))
+DoHeatmap(combined, unlist(rgSet))
+```
+
+
+Number of cells per cluster:
+
+```{r}
+cellCountperCluster <- data.frame(id = Idents(combined))
+barplot = ggplot(data=cellCountperCluster, aes(x=id)) + 
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust=-1) +
+  theme_minimal()
+barplot + labs(x="Cluster", y = "Cell count")
+```
+
+Cluster 11 & 12 are likely to be HC cluster
+
+```{r}
+cells.use <- WhichCells(combined, idents = c('hc1', 'hc2'))
+DimPlot(combined, reduction = "umap", group.by = "ident", cells.highlight = cells.use, sizes.highlight = 0.3) + NoLegend()
+```
+
+
+#### General Hair Cells Markers {.tabset}
+
+##### Heatmap
+
+```{r}
+DoHeatmap(combined, reference_genes$ghc)
+```
+
+
+##### UMAPs
+
+```{r, fig.width=5, fig.height=4}
+for (marker in reference_genes$ghc){
+  tryCatch({print(FeaturePlot(combined, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+##### Dotplot
+
+```{r}
+DotPlot(combined, features=reference_genes$ghc) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
+```
+
+
+##### Violin Plots
+
+
+```{r, fig.width=5, fig.height=4}
+for (marker in reference_genes$ghc){
+  tryCatch({print(VlnPlot(combined, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+
+#### Hair Cells Markers {.tabset}
+
+##### Heatmap
+
+```{r}
+DoHeatmap(combined, reference_genes$hc)
+```
+
+
+##### UMAPs
+
+```{r, fig.width=5, fig.height=4}
+for (marker in reference_genes$hc){
+  tryCatch({print(FeaturePlot(combined, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+##### Dotplot
+
+```{r}
+DotPlot(combined, features=reference_genes$hc) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
+```
+
+
+##### Violin Plots
+
+
+```{r, fig.width=5, fig.height=4}
+for (marker in reference_genes$hc){
+  tryCatch({print(VlnPlot(combined, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+
+#### Cochlear Hair Cells Markers {.tabset}
+
+##### Heatmap
+
+```{r}
+DoHeatmap(combined, reference_genes$chc)
+```
+
+
+##### UMAPs
+
+```{r, fig.width=5, fig.height=4}
+for (marker in reference_genes$chc){
+  tryCatch({print(FeaturePlot(combined, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+##### Dotplot
+
+```{r}
+DotPlot(combined, features=reference_genes$chc) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
+```
+
+
+##### Violin Plots
+
+
+```{r, fig.width=5, fig.height=4}
+for (marker in reference_genes$chc){
+  tryCatch({print(VlnPlot(combined, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+#### Otic Epithelium Markers {.tabset}
+
+##### Heatmap
+
+```{r}
+DoHeatmap(combined, reference_genes$oep)
+```
+
+
+##### UMAPs
+
+```{r, fig.width=5, fig.height=4}
+for (marker in reference_genes$oep){
+  tryCatch({print(FeaturePlot(combined, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+##### Dotplot
+
+```{r}
+DotPlot(combined, features=reference_genes$oep) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
+```
+
+
+##### Violin Plots
+
+
+```{r, fig.width=5, fig.height=4}
+for (marker in reference_genes$oep){
+  tryCatch({print(VlnPlot(combined, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+## Analysis 2: Merge then select
+
+### Merge the datasets
+
+```{r}
+day60_otic <- FindVariableFeatures(day60_otic, nfeatures = 2000)
+day60_ctrl <- FindVariableFeatures(day60_ctrl, nfeatures = 2000)
+```
+
+
+```{r}
+anchors <- FindIntegrationAnchors(object.list = list(day60_otic, day60_ctrl), dims = 1:20)
+```
+
+Integrate the selected cells from both datasets:
+
+```{r}
+combined2 <- IntegrateData(anchorset = anchors, dims = 1:20)
+```
+
+From our set of genes stablished in the Overview, check how many of these ARE NOT present in the "integrated" assay:
+
+```{r}
+sapply(reference_genes, function(rg){
+  rg %>% setdiff(rownames(combined2)) %>% length()
+})
+```
+
+From our set of genes stablished in the Overview, check how many of these ARE present in the "integrated" assay:
+
+```{r}
+sapply(reference_genes, function(rg){
+  rg %>% intersect(rownames(combined2)) %>% length()
+})
+```
+
+
+### Reclustering
+
+```{r}
+combined2 <- ScaleData(combined2, verbose = FALSE)
+combined2 <- FindVariableFeatures(combined2, nfeatures = 2000)
+combined2 <- RunPCA(combined2, npcs = 30, verbose = FALSE)
+ElbowPlot(combined2)
+```
+
+```{r}
+combined2 <- RunUMAP(combined2, reduction = "pca", dims = 1:20)
+```
+
+
+```{r}
+DimPlot(combined2, label = TRUE)
+```
+
+```{r}
+DimPlot(combined2, group.by = "Condition")
+```
+```{r, fig.width=12, fig.height=6}
+DimPlot(combined2, split.by = "Condition")
+```
+
+### Compute Modules Scores
+
+```{r}
+DefaultAssay(combined2) <- "RNA"
+combined2 <- ScaleData(combined2, verbose = FALSE, features=rownames(combined2))
+```
+
+We compute the actual score: 
+
+```{r}
+combined2 <- AddModuleScore(combined2, features=reference_genes, name="module")
+```
+
+#### Plot scores: combined (Analysis 2)
+
+```{r, fig.width=20, fig.height=20}
+featNames <- paste0("module", 1:length(reference_genes))
+p1 <- DimPlot(combined2, group.by = "clusterLabels")
+p2 <- FeaturePlot(combined2, featNames)
+p3 <- VlnPlot(combined2, featNames, group.by = "clusterLabels", ncol = 5)
+
+upper_row <- plot_grid(p1, p2, ncol = 2)
+
+plot_grid(upper_row, p3, ncol = 1)
+```
+
+```{r}
+for (i in 1:length(reference_genes)){
+  if(i==2){
+    print(VlnPlot(combined2, featNames[i], pt.size=1, group.by = "clusterLabels") + geom_hline(yintercept=0.30) + ggtitle(names(reference_genes)[i]))
+  }
+  else if (i==5) {
+    print(VlnPlot(combined2, featNames[i], pt.size=1, group.by = "clusterLabels") + geom_hline(yintercept=0.1) + ggtitle(names(reference_genes)[i]))
+  } 
+  else {
+     print(VlnPlot(combined2, featNames[i], pt.size=1, group.by = "clusterLabels") + ggtitle(names(reference_genes)[i]))
+  }
+}
+```
+
+Use only the cells above the threshold in module 2 and the otic epithelium cells above threshold in module 5:
+
+
+```{r}
+useCell <- (combined2$clusterLabels == "OEP" & combined2$module5>0.1) | combined2$module2 > 0.30 
+combined2_sel <- combined2[ , useCell]
+```
+
+### Reclustering of the selected cells
+
+```{r}
+combined2_sel <- FindVariableFeatures(combined2_sel, nfeatures = 2000)
+combined2_sel <- RunPCA(combined2_sel, npcs = 10, verbose = FALSE)
+ElbowPlot(combined2_sel)
+```
+
+```{r}
+combined2_sel <- RunUMAP(combined2_sel, reduction = "pca", dims = 1:5)
+```
+
+```{r}
+combined2_sel <- RunTSNE(combined2_sel, reduction = "pca", dims = 1:5)
+combined2_sel <- FindNeighbors(combined2_sel, reduction = "pca", dims = 1:5, k.param = 7)
+```
+
+```{r}
+combined2_sel <- FindClusters(combined2_sel, resolution = 0.3)
+```
+
+```{r}
+DimPlot(combined2_sel, label = TRUE)
+```
+
+```{r}
+DimPlot(combined2_sel, group.by = "Condition")
+```
+
+```{r}
+DimPlot(combined2_sel, group.by = "clusterLabels")
+```
+
+### Signature Analysis {.tabset}
+
+Compute again the score for each set of genes established in the Overview section:
+
+```{r, fig.width=10, fig.height=10}
+featNames <- paste0("module", 1:length(reference_genes))
+FeaturePlot(combined2_sel, featNames, order= TRUE)
+```
+
+Plot the set of genes stablished in the Overview and that are present in the integrated object:
+
+```{r, fig.width=10, fig.height=10}
+rgSet <- lapply(reference_genes, intersect, rownames(combined2_sel))
+DoHeatmap(combined2_sel, unlist(rgSet))
+```
+
+
+Number of cells per cluster:
+
+```{r}
+cellCountperCluster <- data.frame(id = Idents(combined2_sel))
+barplot = ggplot(data=cellCountperCluster, aes(x=id)) + 
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust=-1) +
+  theme_minimal()
+barplot + labs(x="Cluster", y = "Cell count")
+```
+
+
+Cells in cluster 8 are likely to be HC:
+
+```{r}
+Idents(combined2_sel) <- combined2_sel$seurat_clusters %>% recode("5"="hc")
+cells.use <- WhichCells(combined2_sel, idents = c('hc'))
+DimPlot(combined2_sel, reduction = "umap", group.by = "ident", cells.highlight = cells.use, sizes.highlight = 0.3) + NoLegend()
+```
+
+#### Markers Discovery
+
+##### All vs all
+
+```{r}
+markers <- FindAllMarkers(object=combined2_sel, test.use = "wilcox", only.pos=TRUE, assay="RNA")
+## Significant markers
+markers <- markers[ ,c("gene","cluster","pct.1", "pct.2", "avg_log2FC","p_val_adj")]
+#cm <- cm[cm$p_val_adj < 0.05, ]
+markers$cluster <- as.factor(markers$cluster)
+markers$diff_pct = abs(markers$pct.1-markers$pct.2)
+markers <- markers[order(markers$diff_pct, decreasing = TRUE),] ## why would we round here?? %>% mutate_if(is.numeric, round, digits=3)
+#ritexl::write_xlsx(markers, path=file.path(resultDir, "posMarkers.xlsx"))
+```
+
+```{r heatmap, fig.width=12, fig.height=12}
+top5 <- markers %>% group_by(cluster) 
+top5 <- slice_max(top5, n = 5, order_by = avg_log2FC)
+genesToPlot <- unique(as.character(top5$gene))
+genesToPlot <- intersect(genesToPlot, rownames(combined2_sel))
+
+DoHeatmap(combined2_sel, features=unique(genesToPlot))
+DotPlot(combined2_sel, features=genesToPlot) + coord_flip()
+```
+
+##### HC vs Rest
+
+```{r}
+
+markers <- FindMarkers(object=combined2_sel, ident.1 = "hc", test.use = "wilcox", assay="RNA")
+## Significant markers
+markers <- ezFrame(gene=rownames(markers), markers)
+markers <- markers[ ,c("gene","pct.1", "pct.2", "avg_log2FC","p_val_adj")]
+#cm <- cm[cm$p_val_adj < 0.05, ]
+markers$diff_pct = abs(markers$pct.1-markers$pct.2)
+markers <- markers[order(markers$diff_pct, decreasing = TRUE),] ## why would we round here?? %>% mutate_if(is.numeric, round, digits=3)
+#writexl::write_xlsx(markers, path=file.path(resultDir, "hcMarkers.xlsx"))
+
+
+```
+
+```{r , fig.width=12, fig.height=12}
+
+genesToPlot <- c(rownames(markers[order(-markers$avg_log2FC), ]) %>% head(30),
+                 rownames(markers[order(markers$avg_log2FC), ]) %>% head(30)) %>% unique()
+
+
+DoHeatmap(combined2_sel, features=unique(genesToPlot))
+DotPlot(combined2_sel, features=genesToPlot) + coord_flip()
+```
+
+#### General Hair Cells Markers {.tabset}
+
+##### Heatmap
+
+```{r, fig.height=10, fig.width=8}
+DoHeatmap(combined2_sel, reference_genes$ghc)
+```
+
+
+##### UMAPs
+
+```{r}
+for (marker in reference_genes$ghc){
+  tryCatch({print(FeaturePlot(combined2_sel, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+##### Dotplot
+
+```{r}
+DotPlot(combined2_sel, features=reference_genes$ghc) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
+```
+
+
+##### Violin Plots
+
+
+```{r}
+for (marker in reference_genes$ghc){
+  tryCatch({print(VlnPlot(combined2_sel, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+
+#### Hair Cells Markers {.tabset}
+
+##### Heatmap
+
+```{r, fig.height=8, fig.width=8}
+DoHeatmap(combined2_sel, reference_genes$hc)
+```
+
+
+##### UMAPs
+
+```{r, fig.width=5, fig.height=4}
+for (marker in reference_genes$hc){
+  tryCatch({print(FeaturePlot(combined2_sel, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+##### Dotplot
+
+```{r}
+DotPlot(combined2_sel, features=reference_genes$hc) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
+```
+
+
+##### Violin Plots
+
+
+```{r, fig.width=5, fig.height=4}
+for (marker in reference_genes$hc){
+  tryCatch({print(VlnPlot(combined2_sel, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+
+#### Cochlear Hair Cells Markers {.tabset}
+
+##### Heatmap
+
+```{r, fig.height=8, fig.width=8}
+DoHeatmap(combined2_sel, reference_genes$chc)
+```
+
+
+##### UMAPs
+
+```{r, fig.width=5, fig.height=4}
+for (marker in reference_genes$chc){
+  tryCatch({print(FeaturePlot(combined2_sel, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+##### Dotplot
+
+```{r}
+DotPlot(combined2_sel, features=reference_genes$chc) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
+```
+
+
+##### Violin Plots
+
+
+```{r, fig.width=5, fig.height=4}
+for (marker in reference_genes$chc){
+  tryCatch({print(VlnPlot(combined2_sel, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+#### Otic Epithelium Markers {.tabset}
+
+##### Heatmap
+
+```{r, fig.height=8, fig.width=8}
+DoHeatmap(combined2_sel, reference_genes$oep)
+```
+
+
+##### UMAPs
+
+```{r, fig.width=5, fig.height=4}
+for (marker in reference_genes$oep){
+  tryCatch({print(FeaturePlot(combined2_sel, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+##### Dotplot
+
+```{r}
+DotPlot(combined2_sel, features=reference_genes$oep) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
+```
+
+
+##### Violin Plots
+
+
+```{r, fig.width=5, fig.height=4}
+for (marker in reference_genes$oep){
+  tryCatch({print(VlnPlot(combined2_sel, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+## Analysis 3: Merge then EPCAM+
+
+### Merge the datasets
+
+The merge is the same as in Analysis 2, hence it is skipped. The results would be the same
+
+### Select only EPCAM+ cells
+
+```{r}
+FeaturePlot(combined2, reduction = "umap", features = "EPCAM", order= TRUE)
+```
+
+
+
+```{r}
+useCell <-  WhichCells(object = combined2, expression = EPCAM > 1.5, slot = 'scale.data')
+combined2_sel <- combined2[ , useCell]
+```
+
+Show the selected cells:
+
+```{r}
+FeaturePlot(combined2_sel, reduction = "umap", features = "EPCAM", order= TRUE)
+```
+
+
+### Reclustering of the selected cells
+
+```{r}
+combined2_sel <- FindVariableFeatures(combined2_sel, nfeatures = 2000)
+combined2_sel <- RunPCA(combined2_sel, npcs = 20, verbose = FALSE)
+ElbowPlot(combined2_sel)
+```
+
+```{r}
+combined2_sel <- RunUMAP(combined2_sel, reduction = "pca", dims = 1:20)
+```
+
+```{r}
+combined2_sel <- RunTSNE(combined2_sel, reduction = "pca", dims = 1:20)
+combined2_sel <- FindNeighbors(combined2_sel, reduction = "pca", dims = 1:20, k.param = 5)
+```
+
+```{r}
+combined2_sel <- FindClusters(combined2_sel, resolution = 0.6)
+```
+
+```{r}
+DimPlot(combined2_sel, label = TRUE)
+```
+
+```{r}
+DimPlot(combined2_sel, group.by = "Condition")
+```
+
+```{r}
+DimPlot(combined2_sel, group.by = "clusterLabels")
+```
+
+### Signature Analysis {.tabset}
+
+Compute the module score for each set of genes established in the Overview section and only for EPCAM+ cells:
+
+```{r, fig.width=10, fig.height=10}
+featNames <- paste0("module", 1:length(reference_genes))
+FeaturePlot(combined2_sel, featNames, order= TRUE)
+```
+
+Plot the set of genes stablished in the Overview and that are present in the integrated object:
+
+```{r, fig.width=10, fig.height=10}
+rgSet <- lapply(reference_genes, intersect, rownames(combined2_sel))
+DoHeatmap(combined2_sel, unlist(rgSet))
+```
+
+
+Number of cells per cluster:
+
+```{r}
+cellCountperCluster <- data.frame(id = Idents(combined2_sel))
+barplot = ggplot(data=cellCountperCluster, aes(x=id)) + 
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust=-1) +
+  theme_minimal()
+barplot + labs(x="Cluster", y = "Cell count")
+```
+
+
+Cells in cluster 13 are likely to be HC:
+
+```{r}
+Idents(combined2_sel) <- combined2_sel$seurat_clusters %>% recode("13"="hc")
+cells.use <- WhichCells(combined2_sel, idents = c('hc'))
+DimPlot(combined2_sel, reduction = "umap", group.by = "ident", cells.highlight = cells.use, sizes.highlight = 0.3) + NoLegend()
+```
+
+
+#### General Hair Cells Markers {.tabset}
+
+##### Heatmap
+
+```{r, fig.height=10, fig.width=8}
+DoHeatmap(combined2_sel, reference_genes$ghc)
+```
+
+
+##### UMAPs
+
+```{r, fig.width=5, fig.height=4}
+for (marker in reference_genes$ghc){
+  tryCatch({print(FeaturePlot(combined2_sel, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+##### Dotplot
+
+```{r}
+DotPlot(combined2_sel, features=reference_genes$ghc) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
+```
+
+
+##### Violin Plots
+
+
+```{r, fig.width=5, fig.height=4}
+for (marker in reference_genes$ghc){
+  tryCatch({print(VlnPlot(combined2_sel, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+
+#### Hair Cells Markers {.tabset}
+
+##### Heatmap
+
+```{r, fig.height=8, fig.width=8}
+DoHeatmap(combined2_sel, reference_genes$hc)
+```
+
+
+##### UMAPs
+
+```{r, fig.width=5, fig.height=4}
+for (marker in reference_genes$hc){
+  tryCatch({print(FeaturePlot(combined2_sel, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+##### Dotplot
+
+```{r}
+DotPlot(combined2_sel, features=reference_genes$hc) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
+```
+
+
+##### Violin Plots
+
+
+```{r, fig.width=5, fig.height=4}
+for (marker in reference_genes$hc){
+  tryCatch({print(VlnPlot(combined2_sel, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+
+#### Cochlear Hair Cells Markers {.tabset}
+
+##### Heatmap
+
+```{r, fig.height=8, fig.width=8}
+DoHeatmap(combined2_sel, reference_genes$chc)
+```
+
+
+##### UMAPs
+
+```{r, fig.width=5, fig.height=4}
+for (marker in reference_genes$chc){
+  tryCatch({print(FeaturePlot(combined2_sel, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+##### Dotplot
+
+```{r}
+DotPlot(combined2_sel, features=reference_genes$chc) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
+```
+
+
+##### Violin Plots
+
+
+```{r, fig.width=5, fig.height=4}
+for (marker in reference_genes$chc){
+  tryCatch({print(VlnPlot(combined2_sel, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+#### Otic Epithelium Markers {.tabset}
+
+##### Heatmap
+
+```{r, fig.height=8, fig.width=8}
+DoHeatmap(combined2_sel, reference_genes$oep)
+```
+
+
+##### UMAPs
+
+```{r, fig.width=5, fig.height=4}
+for (marker in reference_genes$oep){
+  tryCatch({print(FeaturePlot(combined2_sel, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+##### Dotplot
+
+```{r}
+DotPlot(combined2_sel, features=reference_genes$oep) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
+```
+
+
+##### Violin Plots
+
+
+```{r, fig.width=5, fig.height=4}
+for (marker in reference_genes$oep){
+  tryCatch({print(VlnPlot(combined2_sel, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+## Analysis 4: Merge then SOX2+
+
+### Merge the datasets
+
+The merge is the same as in Analysis 2 & 3, hence it is skipped. The results would be the same
+
+### Select only SOX2+ cells
+
+```{r}
+FeaturePlot(combined2, reduction = "umap", features = "SOX2", order= TRUE)
+```
+
+
+
+```{r}
+useCell <-  WhichCells(object = combined2, expression = SOX2 > 1.5, slot = 'scale.data')
+combined2_sel <- combined2[ , useCell]
+```
+
+Show the selected cells:
+
+```{r}
+FeaturePlot(combined2_sel, reduction = "umap", features = "SOX2", order= TRUE)
+```
+
+
+### Reclustering of the selected cells
+
+```{r}
+combined2_sel <- FindVariableFeatures(combined2_sel, nfeatures = 2000)
+combined2_sel <- RunPCA(combined2_sel, npcs = 15, verbose = FALSE)
+ElbowPlot(combined2_sel)
+```
+
+```{r}
+combined2_sel <- RunUMAP(combined2_sel, reduction = "pca", dims = 1:15)
+```
+
+```{r}
+combined2_sel <- RunTSNE(combined2_sel, reduction = "pca", dims = 1:15)
+combined2_sel <- FindNeighbors(combined2_sel, reduction = "pca", dims = 1:15, k.param = 5)
+```
+
+```{r}
+combined2_sel <- FindClusters(combined2_sel, resolution = 0.6)
+```
+
+```{r}
+DimPlot(combined2_sel, label = TRUE)
+```
+
+```{r}
+DimPlot(combined2_sel, group.by = "Condition")
+```
+
+```{r}
+DimPlot(combined2_sel, group.by = "clusterLabels")
+```
+
+### Signature Analysis {.tabset}
+
+Compute the module score for each set of genes established in the Overview section and only for EPCAM+ cells:
+
+```{r, fig.width=10, fig.height=10}
+featNames <- paste0("module", 1:length(reference_genes))
+FeaturePlot(combined2_sel, featNames, order= TRUE)
+```
+
+Plot the set of genes stablished in the Overview and that are present in the integrated object:
+
+```{r, fig.width=10, fig.height=10}
+rgSet <- lapply(reference_genes, intersect, rownames(combined2_sel))
+DoHeatmap(combined2_sel, unlist(rgSet))
+```
+
+
+Number of cells per cluster:
+
+```{r}
+cellCountperCluster <- data.frame(id = Idents(combined2_sel))
+barplot = ggplot(data=cellCountperCluster, aes(x=id)) + 
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust=-1) +
+  theme_minimal()
+barplot + labs(x="Cluster", y = "Cell count")
+```
+
+
+Cells in cluster 18 & 19 are likely to be HC:
+
+```{r}
+Idents(combined2_sel) <- combined2_sel$seurat_clusters %>% recode("18"="hc1", "19"="hc2")
+cells.use <- WhichCells(combined2_sel, idents = c('hc1', 'hc2'))
+DimPlot(combined2_sel, reduction = "umap", group.by = "ident", cells.highlight = cells.use, sizes.highlight = 0.3) + NoLegend()
+```
+
+
+#### General Hair Cells Markers {.tabset}
+
+##### Heatmap
+
+```{r, fig.height=10, fig.width=15}
+DoHeatmap(combined2_sel, reference_genes$ghc)
+```
+
+
+##### UMAPs
+
+```{r}
+for (marker in reference_genes$ghc){
+  tryCatch({print(FeaturePlot(combined2_sel, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+##### Dotplot
+
+```{r}
+DotPlot(combined2_sel, features=reference_genes$ghc) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
+```
+
+
+##### Violin Plots
+
+
+```{r}
+for (marker in reference_genes$ghc){
+  tryCatch({print(VlnPlot(combined2_sel, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+
+#### Hair Cells Markers {.tabset}
+
+##### Heatmap
+
+```{r, fig.height=8, fig.width=8}
+DoHeatmap(combined2_sel, reference_genes$hc)
+```
+
+
+##### UMAPs
+
+```{r}
+for (marker in reference_genes$hc){
+  tryCatch({print(FeaturePlot(combined2_sel, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+##### Dotplot
+
+```{r}
+DotPlot(combined2_sel, features=reference_genes$hc) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
+```
+
+
+##### Violin Plots
+
+
+```{r}
+for (marker in reference_genes$hc){
+  tryCatch({print(VlnPlot(combined2_sel, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+
+#### Cochlear Hair Cells Markers {.tabset}
+
+##### Heatmap
+
+```{r, fig.height=8, fig.width=8}
+DoHeatmap(combined2_sel, reference_genes$chc)
+```
+
+
+##### UMAPs
+
+```{r}
+for (marker in reference_genes$chc){
+  tryCatch({print(FeaturePlot(combined2_sel, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+##### Dotplot
+
+```{r}
+DotPlot(combined2_sel, features=reference_genes$chc) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
+```
+
+
+##### Violin Plots
+
+
+```{r}
+for (marker in reference_genes$chc){
+  tryCatch({print(VlnPlot(combined2_sel, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+#### Otic Epithelium Markers {.tabset}
+
+##### Heatmap
+
+```{r, fig.height=8, fig.width=8}
+DoHeatmap(combined2_sel, reference_genes$oep)
+```
+
+
+##### UMAPs
+
+```{r}
+for (marker in reference_genes$oep){
+  tryCatch({print(FeaturePlot(combined2_sel, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+##### Dotplot
+
+```{r}
+DotPlot(combined2_sel, features=reference_genes$oep) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
+```
+
+
+##### Violin Plots
+
+
+```{r}
+for (marker in reference_genes$oep){
+  tryCatch({print(VlnPlot(combined2_sel, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+## Analysis 5: Merge then POU4F3+
+
+### Merge the datasets
+
+The merge is the same as in Analysis 2 & 3 & 4, hence it is skipped. The results would be the same
+
+### Select only POU4F3+ cells
+
+```{r}
+FeaturePlot(combined2, reduction = "umap", features = "POU4F3", order= TRUE)
+```
+
+
+
+```{r}
+useCell <-  WhichCells(object = combined2, expression = POU4F3 > 1.5, slot = 'scale.data')
+combined2_sel <- combined2[ , useCell]
+```
+
+Show the selected cells:
+
+```{r}
+FeaturePlot(combined2_sel, reduction = "umap", features = "POU4F3", order= TRUE)
+```
+
+
+### Reclustering of the selected cells
+
+```{r}
+combined2_sel <- FindVariableFeatures(combined2_sel, nfeatures = 2000)
+combined2_sel <- RunPCA(combined2_sel, npcs = 8, verbose = FALSE)
+ElbowPlot(combined2_sel)
+```
+
+```{r}
+combined2_sel <- RunUMAP(combined2_sel, reduction = "pca", dims = 1:8)
+```
+
+```{r}
+#combined2_sel <- RunTSNE(combined2_sel, reduction = "pca", dims = 1:8)
+combined2_sel <- FindNeighbors(combined2_sel, reduction = "pca", dims = 1:8, k.param = 5)
+```
+
+```{r}
+combined2_sel <- FindClusters(combined2_sel, resolution = 0.5)
+```
+
+```{r}
+DimPlot(combined2_sel, label = TRUE)
+```
+
+```{r}
+DimPlot(combined2_sel, group.by = "Condition")
+```
+
+```{r}
+DimPlot(combined2_sel, group.by = "clusterLabels")
+```
+
+### Signature Analysis {.tabset}
+
+Compute the module score for each set of genes established in the Overview section and only for EPCAM+ cells:
+
+```{r, fig.width=10, fig.height=10}
+featNames <- paste0("module", 1:length(reference_genes))
+FeaturePlot(combined2_sel, featNames, order= TRUE)
+```
+
+Plot the set of genes stablished in the Overview and that are present in the integrated object:
+
+```{r, fig.width=8, fig.height=8}
+rgSet <- lapply(reference_genes, intersect, rownames(combined2_sel))
+DoHeatmap(combined2_sel, unlist(rgSet))
+```
+
+
+Number of cells per cluster:
+
+```{r}
+cellCountperCluster <- data.frame(id = Idents(combined2_sel))
+barplot = ggplot(data=cellCountperCluster, aes(x=id)) + 
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust=-1) +
+  theme_minimal()
+barplot + labs(x="Cluster", y = "Cell count")
+```
+
+
+Cells in cluster 1 are likely to be HC:
+
+```{r}
+Idents(combined2_sel) <- combined2_sel$seurat_clusters %>% recode("1"="hc")
+cells.use <- WhichCells(combined2_sel, idents = c('hc'))
+DimPlot(combined2_sel, reduction = "umap", group.by = "ident", cells.highlight = cells.use, sizes.highlight = 0.3) + NoLegend()
+```
+
+
+#### General Hair Cells Markers {.tabset}
+
+##### Heatmap
+
+```{r}
+DoHeatmap(combined2_sel, reference_genes$ghc)
+```
+
+
+##### UMAPs
+
+```{r}
+for (marker in reference_genes$ghc){
+  tryCatch({print(FeaturePlot(combined2_sel, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+##### Dotplot
+
+```{r}
+DotPlot(combined2_sel, features=reference_genes$ghc) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
+```
+
+
+##### Violin Plots
+
+
+```{r}
+for (marker in reference_genes$ghc){
+  tryCatch({print(VlnPlot(combined2_sel, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+
+#### Hair Cells Markers {.tabset}
+
+##### Heatmap
+
+```{r}
+DoHeatmap(combined2_sel, reference_genes$hc)
+```
+
+
+##### UMAPs
+
+```{r}
+for (marker in reference_genes$hc){
+  tryCatch({print(FeaturePlot(combined2_sel, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+##### Dotplot
+
+```{r}
+DotPlot(combined2_sel, features=reference_genes$hc) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
+```
+
+
+##### Violin Plots
+
+
+```{r}
+for (marker in reference_genes$hc){
+  tryCatch({print(VlnPlot(combined2_sel, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+
+#### Cochlear Hair Cells Markers {.tabset}
+
+##### Heatmap
+
+```{r, fig.height=8, fig.width=8}
+DoHeatmap(combined2_sel, reference_genes$chc)
+```
+
+
+##### UMAPs
+
+```{r}
+for (marker in reference_genes$chc){
+  tryCatch({print(FeaturePlot(combined2_sel, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+##### Dotplot
+
+```{r}
+DotPlot(combined2_sel, features=reference_genes$chc) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
+```
+
+
+##### Violin Plots
+
+
+```{r}
+for (marker in reference_genes$chc){
+  tryCatch({print(VlnPlot(combined2_sel, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+#### Otic Epithelium Markers {.tabset}
+
+##### Heatmap
+
+```{r, fig.height=8, fig.width=8}
+DoHeatmap(combined2_sel, reference_genes$oep)
+```
+
+
+##### UMAPs
+
+```{r}
+for (marker in reference_genes$oep){
+  tryCatch({print(FeaturePlot(combined2_sel, reduction = "umap", features = marker, order= TRUE))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+##### Dotplot
+
+```{r}
+DotPlot(combined2_sel, features=reference_genes$oep) + coord_flip() + theme(axis.text.x = element_text(size = 8))  
+```
+
+
+##### Violin Plots
+
+
+```{r}
+for (marker in reference_genes$oep){
+  tryCatch({print(VlnPlot(combined2_sel, marker))},
+           error=function(e){print("ERROR")},
+           warning=function(w){print(paste(marker, "not present"))})
+}
+```
+
+
+
+## SessionInfo
+
+```{r, echo=FALSE}
+sessionInfo()
+```
