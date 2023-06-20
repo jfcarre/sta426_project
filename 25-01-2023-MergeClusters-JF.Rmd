@@ -31,9 +31,15 @@ The interactive explorer ist at <https://fgcz-shiny.uzh.ch/fgcz_iSEE/?data=p2978
 This report is intented to address the different options proposed of merging, filtering and clustering the two experiments EXP45 & EXP46 to obtain a pure cluster of Hair Cells.
 
 Important references are:
+<<<<<<< HEAD
   *   Dataset integration algorithm: [https://doi.org/10.1016/j.cell.2019.05.031](https://doi.org/10.1016/j.cell.2019.05.031)
   *   Calculate module score reference: [https://doi.org/10.1126%2Fscience.aad0501](https://doi.org/10.1126%2Fscience.aad0501)
   *   Calculate module score tutorial: [Link](https://www.waltermuskovic.com/2021/04/15/seurat-s-addmodulescore-function/#:~:text=Calculate%20the%20average%20expression%20levels,randomly%20selected%20from%20each%20bin.) (I found this particularly helpful to understand the actual implementation of the algorithm in R)
+=======
+  -   Dataset integration algorithm: [https://doi.org/10.1016/j.cell.2019.05.031](https://doi.org/10.1016/j.cell.2019.05.031)
+  -   Calculate module score reference: [https://doi.org/10.1126%2Fscience.aad0501](https://doi.org/10.1126%2Fscience.aad0501)
+  -   Calculate module score tutorial: [Link](https://www.waltermuskovic.com/2021/04/15/seurat-s-addmodulescore-function/#:~:text=Calculate%20the%20average%20expression%20levels,randomly%20selected%20from%20each%20bin.) (I found this particularly helpful to understand the actual implementation of the algorithm in R)
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 
 The organization of this report is as follows:
 
@@ -259,11 +265,17 @@ day60_ctrl <- AddModuleScore(day60_ctrl, features=reference_genes, name="module"
 featNames <- paste0("module", 1:length(reference_genes))
 p1 <- DimPlot(day60_otic, label=TRUE)
 p2 <- FeaturePlot(day60_otic, featNames)
+<<<<<<< HEAD
 p3 <- VlnPlot(day60_otic, featNames, ncol=5)
 
 grid1 <- plot_grid(p1, p2, ncol = 2)
 
 plot_grid(grid1, p3, ncol = 1)
+=======
+p3 <- VlnPlot(day60_otic, featNames)
+
+plot_grid(p1, p2, p3, ncol = 2)
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 ```
 
 ```{r}
@@ -285,11 +297,17 @@ day60_oticSel <- day60_otic[ , useCell]
 featNames <- paste0("module", 1:length(reference_genes))
 p1 <- DimPlot(day60_ctrl, label=TRUE)
 p2 <- FeaturePlot(day60_ctrl, featNames)
+<<<<<<< HEAD
 p3 <- VlnPlot(day60_ctrl, featNames, ncol=5)
 
 grid1 <- plot_grid(p1, p2, ncol = 2)
 
 plot_grid(grid1, p3, ncol = 1)
+=======
+p3 <- VlnPlot(day60_ctrl, featNames)
+
+plot_grid(p1, p2, p3, ncol = 2)
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 ```
 
 ```{r}
@@ -436,7 +454,11 @@ DoHeatmap(combined, reference_genes$ghc)
 
 ##### UMAPs
 
+<<<<<<< HEAD
 ```{r, fig.width=5, fig.height=4}
+=======
+```{r}
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 for (marker in reference_genes$ghc){
   tryCatch({print(FeaturePlot(combined, reduction = "umap", features = marker, order= TRUE))},
            error=function(e){print("ERROR")},
@@ -455,7 +477,11 @@ DotPlot(combined, features=reference_genes$ghc) + coord_flip() + theme(axis.text
 ##### Violin Plots
 
 
+<<<<<<< HEAD
 ```{r, fig.width=5, fig.height=4}
+=======
+```{r}
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 for (marker in reference_genes$ghc){
   tryCatch({print(VlnPlot(combined, marker))},
            error=function(e){print("ERROR")},
@@ -476,7 +502,11 @@ DoHeatmap(combined, reference_genes$hc)
 
 ##### UMAPs
 
+<<<<<<< HEAD
 ```{r, fig.width=5, fig.height=4}
+=======
+```{r}
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 for (marker in reference_genes$hc){
   tryCatch({print(FeaturePlot(combined, reduction = "umap", features = marker, order= TRUE))},
            error=function(e){print("ERROR")},
@@ -495,7 +525,11 @@ DotPlot(combined, features=reference_genes$hc) + coord_flip() + theme(axis.text.
 ##### Violin Plots
 
 
+<<<<<<< HEAD
 ```{r, fig.width=5, fig.height=4}
+=======
+```{r}
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 for (marker in reference_genes$hc){
   tryCatch({print(VlnPlot(combined, marker))},
            error=function(e){print("ERROR")},
@@ -516,7 +550,11 @@ DoHeatmap(combined, reference_genes$chc)
 
 ##### UMAPs
 
+<<<<<<< HEAD
 ```{r, fig.width=5, fig.height=4}
+=======
+```{r}
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 for (marker in reference_genes$chc){
   tryCatch({print(FeaturePlot(combined, reduction = "umap", features = marker, order= TRUE))},
            error=function(e){print("ERROR")},
@@ -535,7 +573,11 @@ DotPlot(combined, features=reference_genes$chc) + coord_flip() + theme(axis.text
 ##### Violin Plots
 
 
+<<<<<<< HEAD
 ```{r, fig.width=5, fig.height=4}
+=======
+```{r}
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 for (marker in reference_genes$chc){
   tryCatch({print(VlnPlot(combined, marker))},
            error=function(e){print("ERROR")},
@@ -555,7 +597,11 @@ DoHeatmap(combined, reference_genes$oep)
 
 ##### UMAPs
 
+<<<<<<< HEAD
 ```{r, fig.width=5, fig.height=4}
+=======
+```{r}
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 for (marker in reference_genes$oep){
   tryCatch({print(FeaturePlot(combined, reduction = "umap", features = marker, order= TRUE))},
            error=function(e){print("ERROR")},
@@ -574,7 +620,11 @@ DotPlot(combined, features=reference_genes$oep) + coord_flip() + theme(axis.text
 ##### Violin Plots
 
 
+<<<<<<< HEAD
 ```{r, fig.width=5, fig.height=4}
+=======
+```{r}
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 for (marker in reference_genes$oep){
   tryCatch({print(VlnPlot(combined, marker))},
            error=function(e){print("ERROR")},
@@ -664,7 +714,11 @@ combined2 <- AddModuleScore(combined2, features=reference_genes, name="module")
 featNames <- paste0("module", 1:length(reference_genes))
 p1 <- DimPlot(combined2, group.by = "clusterLabels")
 p2 <- FeaturePlot(combined2, featNames)
+<<<<<<< HEAD
 p3 <- VlnPlot(combined2, featNames, group.by = "clusterLabels", ncol = 5)
+=======
+p3 <- VlnPlot(combined2, featNames, group.by = "clusterLabels")
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 
 upper_row <- plot_grid(p1, p2, ncol = 2)
 
@@ -673,6 +727,7 @@ plot_grid(upper_row, p3, ncol = 1)
 
 ```{r}
 for (i in 1:length(reference_genes)){
+<<<<<<< HEAD
   if(i==2){
     print(VlnPlot(combined2, featNames[i], pt.size=1, group.by = "clusterLabels") + geom_hline(yintercept=0.30) + ggtitle(names(reference_genes)[i]))
   }
@@ -690,6 +745,17 @@ Use only the cells above the threshold in module 2 and the otic epithelium cells
 
 ```{r}
 useCell <- (combined2$clusterLabels == "OEP" & combined2$module5>0.1) | combined2$module2 > 0.30 
+=======
+  print(VlnPlot(combined2, featNames[i], pt.size=1, group.by = "clusterLabels") + geom_hline(yintercept=0.30) + ggtitle(names(reference_genes)[i]))
+}
+```
+
+Use only the cells above the threshold and the otic epithelium cells:
+
+
+```{r}
+useCell <- combined2$clusterLabels == "OEP" | combined2$module2 > 0.30 
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 combined2_sel <- combined2[ , useCell]
 ```
 
@@ -702,6 +768,7 @@ ElbowPlot(combined2_sel)
 ```
 
 ```{r}
+<<<<<<< HEAD
 combined2_sel <- RunUMAP(combined2_sel, reduction = "pca", dims = 1:5)
 ```
 
@@ -712,6 +779,18 @@ combined2_sel <- FindNeighbors(combined2_sel, reduction = "pca", dims = 1:5, k.p
 
 ```{r}
 combined2_sel <- FindClusters(combined2_sel, resolution = 0.3)
+=======
+combined2_sel <- RunUMAP(combined2_sel, reduction = "pca", dims = 1:10)
+```
+
+```{r}
+combined2_sel <- RunTSNE(combined2_sel, reduction = "pca", dims = 1:10)
+combined2_sel <- FindNeighbors(combined2_sel, reduction = "pca", dims = 1:10, k.param = 9)
+```
+
+```{r}
+combined2_sel <- FindClusters(combined2_sel, resolution = 0.5)
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 ```
 
 ```{r}
@@ -758,11 +837,16 @@ barplot + labs(x="Cluster", y = "Cell count")
 Cells in cluster 8 are likely to be HC:
 
 ```{r}
+<<<<<<< HEAD
 Idents(combined2_sel) <- combined2_sel$seurat_clusters %>% recode("5"="hc")
+=======
+Idents(combined2_sel) <- combined2_sel$seurat_clusters %>% recode("8"="hc")
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 cells.use <- WhichCells(combined2_sel, idents = c('hc'))
 DimPlot(combined2_sel, reduction = "umap", group.by = "ident", cells.highlight = cells.use, sizes.highlight = 0.3) + NoLegend()
 ```
 
+<<<<<<< HEAD
 #### Markers Discovery
 
 ##### All vs all
@@ -813,6 +897,8 @@ genesToPlot <- c(rownames(markers[order(-markers$avg_log2FC), ]) %>% head(30),
 DoHeatmap(combined2_sel, features=unique(genesToPlot))
 DotPlot(combined2_sel, features=genesToPlot) + coord_flip()
 ```
+=======
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 
 #### General Hair Cells Markers {.tabset}
 
@@ -865,7 +951,11 @@ DoHeatmap(combined2_sel, reference_genes$hc)
 
 ##### UMAPs
 
+<<<<<<< HEAD
 ```{r, fig.width=5, fig.height=4}
+=======
+```{r}
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 for (marker in reference_genes$hc){
   tryCatch({print(FeaturePlot(combined2_sel, reduction = "umap", features = marker, order= TRUE))},
            error=function(e){print("ERROR")},
@@ -884,7 +974,11 @@ DotPlot(combined2_sel, features=reference_genes$hc) + coord_flip() + theme(axis.
 ##### Violin Plots
 
 
+<<<<<<< HEAD
 ```{r, fig.width=5, fig.height=4}
+=======
+```{r}
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 for (marker in reference_genes$hc){
   tryCatch({print(VlnPlot(combined2_sel, marker))},
            error=function(e){print("ERROR")},
@@ -905,7 +999,11 @@ DoHeatmap(combined2_sel, reference_genes$chc)
 
 ##### UMAPs
 
+<<<<<<< HEAD
 ```{r, fig.width=5, fig.height=4}
+=======
+```{r}
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 for (marker in reference_genes$chc){
   tryCatch({print(FeaturePlot(combined2_sel, reduction = "umap", features = marker, order= TRUE))},
            error=function(e){print("ERROR")},
@@ -924,7 +1022,11 @@ DotPlot(combined2_sel, features=reference_genes$chc) + coord_flip() + theme(axis
 ##### Violin Plots
 
 
+<<<<<<< HEAD
 ```{r, fig.width=5, fig.height=4}
+=======
+```{r}
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 for (marker in reference_genes$chc){
   tryCatch({print(VlnPlot(combined2_sel, marker))},
            error=function(e){print("ERROR")},
@@ -944,7 +1046,11 @@ DoHeatmap(combined2_sel, reference_genes$oep)
 
 ##### UMAPs
 
+<<<<<<< HEAD
 ```{r, fig.width=5, fig.height=4}
+=======
+```{r}
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 for (marker in reference_genes$oep){
   tryCatch({print(FeaturePlot(combined2_sel, reduction = "umap", features = marker, order= TRUE))},
            error=function(e){print("ERROR")},
@@ -963,7 +1069,11 @@ DotPlot(combined2_sel, features=reference_genes$oep) + coord_flip() + theme(axis
 ##### Violin Plots
 
 
+<<<<<<< HEAD
 ```{r, fig.width=5, fig.height=4}
+=======
+```{r}
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 for (marker in reference_genes$oep){
   tryCatch({print(VlnPlot(combined2_sel, marker))},
            error=function(e){print("ERROR")},
@@ -1079,7 +1189,11 @@ DoHeatmap(combined2_sel, reference_genes$ghc)
 
 ##### UMAPs
 
+<<<<<<< HEAD
 ```{r, fig.width=5, fig.height=4}
+=======
+```{r}
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 for (marker in reference_genes$ghc){
   tryCatch({print(FeaturePlot(combined2_sel, reduction = "umap", features = marker, order= TRUE))},
            error=function(e){print("ERROR")},
@@ -1098,7 +1212,11 @@ DotPlot(combined2_sel, features=reference_genes$ghc) + coord_flip() + theme(axis
 ##### Violin Plots
 
 
+<<<<<<< HEAD
 ```{r, fig.width=5, fig.height=4}
+=======
+```{r}
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 for (marker in reference_genes$ghc){
   tryCatch({print(VlnPlot(combined2_sel, marker))},
            error=function(e){print("ERROR")},
@@ -1119,7 +1237,11 @@ DoHeatmap(combined2_sel, reference_genes$hc)
 
 ##### UMAPs
 
+<<<<<<< HEAD
 ```{r, fig.width=5, fig.height=4}
+=======
+```{r}
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 for (marker in reference_genes$hc){
   tryCatch({print(FeaturePlot(combined2_sel, reduction = "umap", features = marker, order= TRUE))},
            error=function(e){print("ERROR")},
@@ -1138,7 +1260,11 @@ DotPlot(combined2_sel, features=reference_genes$hc) + coord_flip() + theme(axis.
 ##### Violin Plots
 
 
+<<<<<<< HEAD
 ```{r, fig.width=5, fig.height=4}
+=======
+```{r}
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 for (marker in reference_genes$hc){
   tryCatch({print(VlnPlot(combined2_sel, marker))},
            error=function(e){print("ERROR")},
@@ -1159,7 +1285,11 @@ DoHeatmap(combined2_sel, reference_genes$chc)
 
 ##### UMAPs
 
+<<<<<<< HEAD
 ```{r, fig.width=5, fig.height=4}
+=======
+```{r}
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 for (marker in reference_genes$chc){
   tryCatch({print(FeaturePlot(combined2_sel, reduction = "umap", features = marker, order= TRUE))},
            error=function(e){print("ERROR")},
@@ -1178,7 +1308,11 @@ DotPlot(combined2_sel, features=reference_genes$chc) + coord_flip() + theme(axis
 ##### Violin Plots
 
 
+<<<<<<< HEAD
 ```{r, fig.width=5, fig.height=4}
+=======
+```{r}
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 for (marker in reference_genes$chc){
   tryCatch({print(VlnPlot(combined2_sel, marker))},
            error=function(e){print("ERROR")},
@@ -1198,7 +1332,11 @@ DoHeatmap(combined2_sel, reference_genes$oep)
 
 ##### UMAPs
 
+<<<<<<< HEAD
 ```{r, fig.width=5, fig.height=4}
+=======
+```{r}
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 for (marker in reference_genes$oep){
   tryCatch({print(FeaturePlot(combined2_sel, reduction = "umap", features = marker, order= TRUE))},
            error=function(e){print("ERROR")},
@@ -1217,7 +1355,11 @@ DotPlot(combined2_sel, features=reference_genes$oep) + coord_flip() + theme(axis
 ##### Violin Plots
 
 
+<<<<<<< HEAD
 ```{r, fig.width=5, fig.height=4}
+=======
+```{r}
+>>>>>>> 95a7ec9017eac89511e02685aa10ed249ed6d4d5
 for (marker in reference_genes$oep){
   tryCatch({print(VlnPlot(combined2_sel, marker))},
            error=function(e){print("ERROR")},
